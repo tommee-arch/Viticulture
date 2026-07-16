@@ -12,7 +12,7 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-export default function NowScreen() {
+export function NowScreen() {
   // Coordinates for the test site
   const position = [-33.9345, 18.8644]; 
 
