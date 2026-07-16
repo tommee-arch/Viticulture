@@ -19,14 +19,26 @@ export function VineyardLayer() {
   useEffect(() => {
     fetch(`${process.env.PUBLIC_URL}/data/tokara_boundaries.geojson`)
       .then(response => response.json())
-      .then(data => setVineyards(data))
+      .then(data => {
+        console.log("GeoJSON loaded into state:", data); // Check console for this!
+        setVineyards(data);
+      })
       .catch(err => console.error("Error loading vineyard GeoJSON:", err));
   }, []);
 
   return vineyards ? (
     <GeoJSON 
+      key="vineyard-layer-unique-key" 
       data={vineyards} 
-      style={{ color: '#27ae60', weight: 2, fillOpacity: 0.3 }} 
+      style={{ 
+        color: '#ff0000', // Changed to bright red for testing
+        weight: 5,        // Thicker lines
+        fillOpacity: 0.8  // High opacity
+      }} 
+      onEachFeature={(feature, layer) => {
+        console.log("Feature detected on map:", feature); // If this prints, Leaflet is reading the data!
+        layer.bindPopup("Vineyard Block: " + feature.properties.BLOCK);
+      }}
     />
   ) : null;
 }
