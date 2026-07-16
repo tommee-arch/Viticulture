@@ -1,7 +1,7 @@
 import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 
-export default function PredictiveScreen() {
+export function PredictiveScreen() {
   const position = [-33.9345, 18.8644]; 
 
   return (
