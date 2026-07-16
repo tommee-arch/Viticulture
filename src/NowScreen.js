@@ -17,7 +17,8 @@ export function VineyardLayer() {
   const [vineyards, setVineyards] = useState(null);
 
   useEffect(() => {
-    fetch(`${process.env.PUBLIC_URL}/data/tokara_boundaries.geojson`)
+    // Remove process.env.PUBLIC_URL just to test if it loads
+    fetch('/data/tokara_boundaries.geojson')
       .then(response => response.json())
       .then(data => {
         console.log("GeoJSON loaded into state:", data); // Check console for this!
