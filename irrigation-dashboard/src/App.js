@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import NowScreen from './NowScreen';
-import PredictiveScreen from './PredictiveScreen';
+import { NowScreen } from './NowScreen';
+import { PredictiveScreen } from './PredictiveScreen';
 import 'leaflet/dist/leaflet.css';
 
 export default function App() {
