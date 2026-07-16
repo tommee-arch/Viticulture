@@ -88,4 +88,8 @@ const contentCard = {
   padding: '20px', 
   borderRadius: '8px', 
   boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 54691a0f830309e9bcde5e248d67906dd74bb09e
