@@ -12,13 +12,16 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header">
+      <div 
+        className="sidebar-header" 
+        style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+      >
         <img 
           src={logo} 
           alt="Irriguide Logo" 
           style={{ width: '40px', height: '40px', objectFit: 'contain' }} 
         />
-        <h1>IRRIGUIDE</h1>
+        <h1 style={{ margin: 0 }}>IRRIGUIDE</h1>
       </div>
 
       <nav className="nav-menu">

@@ -99,13 +99,16 @@ export default function MapTab({ geojsonData, studyAreaGeojson, selectedField, s
 
           {/* Vineyard Shapefiles Layer */}
           <LayersControl.Overlay checked name="Vineyard Boundaries">
-            {geojsonData && (
-              <GeoJSON 
-                data={geojsonData} 
-                style={styleGeoJSON} 
-                onEachFeature={onEachFeature}
-              />
-            )}
+<GeoJSON 
+  data={studyAreaGeojson}
+  style={{
+    color: "#ff7800",      // Border line color
+    weight: 2,             // Border line thickness (pixels)
+    opacity: 1.0,          // Border line opacity (0.0 to 1.0)
+    fillColor: "#ff7800",  // Inside polygon color
+    fillOpacity: 0.5       // Inside polygon opacity (0.0 to 1.0)
+  }}
+/>
           </LayersControl.Overlay>
         </LayersControl>
 
