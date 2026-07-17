@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import logo from '../sprinklers.png';
-export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedField, setSelectedField }) {
+export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedField, setSelectedField, collapsed }) {
   const [isDecisionSupportOpen, setIsDecisionSupportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Updated to search by either BLOCK or CULTIVAR
-  const filteredFields = fieldsData.filter(f => 
+  const filteredFields = fieldsData.filter(f =>
     (f.BLOCK && f.BLOCK.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (f.CULTIVAR && f.CULTIVAR.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div 
         className="sidebar-header" 
         style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
