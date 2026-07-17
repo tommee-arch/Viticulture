@@ -1,90 +1,67 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from 'react-leaflet';
-import L from 'leaflet';
+import React from 'react';
+import ZoomableMap from './components/ZoomableMap';
+import WeatherWidget from './components/WeatherWidget';
 
-// Fix for default Leaflet marker icons
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// 1. Define the VineyardLayer component inside or above this file
-export function VineyardLayer() {
-  const [vineyards, setVineyards] = useState(null);
-
-  useEffect(() => {
-    // Remove process.env.PUBLIC_URL just to test if it loads
-    // Ensure the filename in your code matches the filename in your public/data folder exactly
-    fetch(`${process.env.PUBLIC_URL}/data/Tokara_Study_Area.json`)
-      .then(response => response.json())
-      .then(data => {
-        console.log("GeoJSON loaded into state:", data); // Check console for this!
-        setVineyards(data);
-      })
-      .catch(err => console.error("Error loading vineyard GeoJSON:", err)); 
-  }, []);
-
-  return vineyards ? (
-    <GeoJSON 
-      key="vineyard-layer-unique-key" 
-      data={vineyards} 
-      style={{ 
-        color: '#ff0000', // Changed to bright red for testing
-        weight: 5,        // Thicker lines
-        fillOpacity: 0.8  // High opacity
-      }} 
-      onEachFeature={(feature, layer) => {
-        console.log("Feature detected on map:", feature); // If this prints, Leaflet is reading the data!
-        layer.bindPopup("Vineyard Block: " + feature.properties.BLOCK);
-      }}
-    />
-  ) : null;
-}
-
-// 2. Use it inside your NowScreen
-export function NowScreen() {
-  const position = [-33.9345, 18.8644]; 
+export default function NowScreen({ field }) {
+  if (!field) return <div className="loading">Select a field to view data.</div>;
 
   return (
-    <div>
-      <h3 style={{ marginTop: 0, color: '#2c3e50' }}>Live Field Status</h3>
-      
-      <div style={{ height: '400px', width: '100%', marginBottom: '20px', zIndex: 1 }}>
-        <MapContainer center={position} zoom={14} style={{ height: '100%', width: '100%', borderRadius: '8px' }}>
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; OpenStreetMap contributors'
-          />
-          
-          {/* This is where your new layer renders */}
-          <VineyardLayer />
-          
-          <Marker position={position}>
-            <Popup>
-              <strong>Test Plot Alpha</strong><br/>
-              Cultivar: Bophelo
-            </Popup>
-          </Marker>
-        </MapContainer>
-      </div>
+    <div className="dashboard-wrapper">
+      <div className="dashboard-grid">
+        
+        {/* Left Column: Metadata & Map */}
+        <div className="col-left">
+          <div className="card field-meta">
+            <h2>{field.FieldName}</h2>
+            <table>
+              <tbody>
+                <tr><td>Cultivar Type</td><td>{field.Cultivar || 'Cabernet Sauvignon'}</td></tr>
+                <tr><td>Growth Stage</td><td>{field.GrowthStage || 'Veraison'}</td></tr>
+                <tr><td>Plant Health</td><td className="status-good">{field.HealthStatus || 'Excellent'}</td></tr>
+                <tr><td>Slope Aspect</td><td>{field.Aspect || 'NW'}</td></tr>
+                <tr><td>Average Slope</td><td>{field.Slope || '5'}%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="card map-container-card">
+            <ZoomableMap lat={field.Lat} lng={field.Lng} />
+          </div>
+        </div>
 
-      <div style={dataCard}>
-        <p><strong>System Status:</strong> <span style={{color: 'green'}}>Online</span></p>
-        <p><strong>Today's GDD:</strong> 14.2</p>
-        <p><strong>Action:</strong> Soil moisture adequate.</p>
+        {/* Right Column: KPIs & Weather */}
+        <div className="col-right">
+          <div className="kpi-grid">
+            <div className="card kpi">
+              <span className="label">Irrigation Net</span>
+              <span className="value">{field.IrrigationNet || 18} <span className="unit">mm</span></span>
+            </div>
+            <div className="card kpi">
+              <span className="label">Evapotranspiration</span>
+              <span className="value">{field.ET || 4.2} <span className="unit">mm/day</span></span>
+            </div>
+            <div className="card kpi">
+              <span className="label">Soil Moisture</span>
+              <span className="value">{field.SoilMoisture || 32} <span className="unit">%</span></span>
+            </div>
+            <div className="card kpi warning">
+              <span className="label">Dehydration Risk</span>
+              <span className="value">{field.RiskLevel || 'Low'}</span>
+            </div>
+            <div className="card kpi">
+              <span className="label">NDVI Index</span>
+              <span className="value">{field.NDVI || 0.72}</span>
+            </div>
+            <div className="card kpi">
+              <span className="label">Water Use Target</span>
+              <span className="value">{(field.WaterUse || 125000).toLocaleString()} <span className="unit">L/ha</span></span>
+            </div>
+          </div>
+          
+          <div className="card weather-card">
+            <WeatherWidget lat={field.Lat} lng={field.Lng} />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
-const dataCard = {
-  padding: '20px', 
-  backgroundColor: '#e8f4f8', 
-  borderRadius: '8px',
-  border: '1px solid #bce8f1',
-  color: '#31708f'
-};

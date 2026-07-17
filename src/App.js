@@ -1,39 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import './App.css';
-
-// Import Components
+import Papa from 'papaparse';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
-
-// Import Screens/Tabs
-import MapTab from './components/MapTab';       // The full screen map view
-import NowScreen from './NowScreen';            // Your existing file, wrapped in the new UI
-import PredictiveScreen from './PredictiveScreen'; // Your existing file, wrapped in the new UI
+import NowScreen from './NowScreen';
+import PredictiveScreen from './PredictiveScreen';
+import MapTab from './components/MapTab'; // Assuming you have a full-screen map component
+import './App.css';
 
 export default function App() {
-  // Navigation State
-  const [activeTab, setActiveTab] = useState('Fields'); 
+  const [activeTab, setActiveTab] = useState('Fields');
+  const [timeframe, setTimeframe] = useState('Now');
+  const [fieldsData, setFieldsData] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
-  
-  // Timeframe State (Toggled by TopBar)
-  const [timeframe, setTimeframe] = useState('Now'); // 'Now' or 'Predictive'
-
-  // Placeholder for your field data (ideally fetched from a CSV or JSON)
-  const [fieldsData, setFieldsData] = useState([
-    { FieldName: 'Block A2', AreaHA: 1.7, Lat: -33.9249, Lng: 18.8602 },
-    { FieldName: 'Block A3', AreaHA: 1.0, Lat: -33.9255, Lng: 18.8610 }
-  ]);
 
   useEffect(() => {
-    // Set default selected field on load
-    if (fieldsData.length > 0) {
-      setSelectedField(fieldsData[0]);
-    }
-  }, [fieldsData]);
+    // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
+    const csvUrl = process.env.PUBLIC_URL + '/data/fields_data.csv';
+    
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: (results) => {
+        if (results.data && results.data.length > 0) {
+          // Filter out any empty rows
+          const validData = results.data.filter(row => row.FieldName);
+          setFieldsData(validData);
+          setSelectedField(validData[0]);
+        }
+      },
+      error: (err) => console.error("Error parsing CSV:", err)
+    });
+  }, []);
 
   return (
     <div className="app-container">
-      {/* Sidebar handles the left menu and field selection */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -41,30 +42,33 @@ export default function App() {
         selectedField={selectedField}
         setSelectedField={setSelectedField}
       />
-      
       <div className="main-content">
-        {/* TopBar handles the Date toggles and Print button */}
         <TopBar timeframe={timeframe} setTimeframe={setTimeframe} />
         
-        <div className="content-area">
-          {/* Main Content Routing */}
-          {activeTab === 'Home' && <MapTab />}
+        <main className="content-area">
+          {activeTab === 'Home' && <MapTab fields={fieldsData} />}
           
           {activeTab === 'Fields' && timeframe === 'Now' && (
-             <NowScreen field={selectedField} />
+            <NowScreen field={selectedField} />
           )}
-
+          
           {activeTab === 'Fields' && timeframe === 'Predictive' && (
-             <PredictiveScreen field={selectedField} />
+            <PredictiveScreen field={selectedField} />
           )}
 
           {(activeTab === 'Irrigation Manager' || activeTab === 'Fertigation Manager') && (
-            <div className="placeholder-screen">
-              <h2>{activeTab} Module</h2>
-              <p>Decision support tools loading...</p>
+            <div className="module-placeholder">
+              <h2>{activeTab} Workspace</h2>
+              <p>Select a field and input parameters to generate application rates.</p>
             </div>
           )}
-        </div>
+
+          {activeTab === 'Weather' && (
+            <div className="module-placeholder">
+              <h2>Regional Weather Radar</h2>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );
