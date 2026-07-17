@@ -4,8 +4,10 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
   const [isDecisionSupportOpen, setIsDecisionSupportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Updated to search by either BLOCK or CULTIVAR
   const filteredFields = fieldsData.filter(f => 
-    f.FieldName?.toLowerCase().includes(searchTerm.toLowerCase())
+    (f.BLOCK && f.BLOCK.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (f.CULTIVAR && f.CULTIVAR.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -24,7 +26,7 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
             onClick={() => setIsDecisionSupportOpen(!isDecisionSupportOpen)}
           >
             Decision Support
-            <span className="chevron">{isDecisionSupportOpen ? '▼' : '▶'}</span>
+            <span className="chevron">{isDecisionSupportOpen ? ' ▼' : ' ▶'}</span>
           </button>
           
           {isDecisionSupportOpen && (
@@ -42,7 +44,7 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
         <div className="search-container">
           <input 
             type="text" 
-            placeholder="Find a field..." 
+            placeholder="Find a block or cultivar..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -51,7 +53,8 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
           {filteredFields.map((field, idx) => (
             <li 
               key={idx} 
-              className={selectedField?.FieldName === field.FieldName ? 'selected' : ''}
+              // Updated to check matching BLOCK instead of FieldName
+              className={selectedField?.BLOCK === field.BLOCK ? 'selected' : ''}
               onClick={() => {
                 setSelectedField(field);
                 if (activeTab !== 'Fields' && activeTab !== 'Irrigation Manager') {
@@ -59,8 +62,10 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
                 }
               }}
             >
-              <span className="field-name">{field.FieldName}</span>
-              <span className="field-size">{field.AreaHA} ha</span>
+              {/* Updated to display BLOCK and CULTIVAR */}
+              <span className="field-name">{field.BLOCK} - {field.CULTIVAR}</span>
+              {/* Updated to display Area from the CSV, rounded to 3 decimal places */}
+              <span className="field-size">{Number(field.Area).toFixed(3)} ha</span>
             </li>
           ))}
         </ul>
