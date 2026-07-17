@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MapContainer, TileLayer, LayersControl, ScaleControl, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './MapFlyTo';
 
-export default function MapTab({ geojsonData, selectedField, setSelectedField }) {
+export default function MapTab({ geojsonData, studyAreaGeojson, selectedField, setSelectedField }) {
   // State for the fill opacity slider (0 to 1)
   const [fillOpacity, setFillOpacity] = useState(0.5);
 
@@ -80,6 +80,21 @@ export default function MapTab({ geojsonData, selectedField, setSelectedField })
               attribution="&copy; OpenStreetMap contributors"
             />
           </LayersControl.BaseLayer>
+
+          {/* NEW: Tokara Study Area Boundary */}
+          <LayersControl.Overlay checked name="Study Area Boundary">
+            {studyAreaGeojson && (
+              <GeoJSON 
+                data={studyAreaGeojson} 
+                style={{ 
+                  color: '#ffea00', // Bright yellow
+                  weight: 3, 
+                  fillOpacity: 0,   // Hollow inside
+                  dashArray: '5, 5' // Dashed line effect
+                }} 
+              />
+            )}
+          </LayersControl.Overlay>
 
           {/* Vineyard Shapefiles Layer */}
           <LayersControl.Overlay checked name="Vineyard Boundaries">

@@ -21,7 +21,7 @@ const generateMockData = (blockName) => {
   };
 };
 
-export default function NowScreen({ field, geojsonData }) {
+export default function NowScreen({ field, geojsonData, studyAreaGeojson }) {
   if (!field) return <div className="loading">Select a field to view data.</div>;
 
   const mockData = generateMockData(field.BLOCK || 'default');
@@ -59,6 +59,16 @@ export default function NowScreen({ field, geojsonData }) {
             {/* The Fields Tab Map using the FlyTo Component */}
             <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+              
+              {/* NEW: Study Area Boundary Layer */}
+              {studyAreaGeojson && (
+                <GeoJSON 
+                  data={studyAreaGeojson} 
+                  style={{ color: '#ffea00', weight: 2, fillOpacity: 0, dashArray: '4, 4' }} 
+                />
+              )}
+
+              {/* Existing Vineyard Layer */}
               {geojsonData && <GeoJSON data={geojsonData} style={{ color: '#ff7800', fillOpacity: 0.2 }} />}
               <MapFlyTo selectedField={field} />
             </MapContainer>
