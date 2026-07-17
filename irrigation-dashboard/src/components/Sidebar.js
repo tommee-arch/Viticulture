@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import logo from 'data/sprinklers.png';
 export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedField, setSelectedField }) {
   const [isDecisionSupportOpen, setIsDecisionSupportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -13,6 +13,11 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
+        <img 
+          src={logo} 
+          alt="Irriguide Logo" 
+          style={{ width: '40px', height: '40px', objectFit: 'contain' }} 
+        />
         <h1>IRRIGUIDE</h1>
       </div>
 
