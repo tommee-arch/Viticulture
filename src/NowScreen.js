@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
+import MapResizeHandler from './components/MapResizeHandler';
 import WeatherWidget from './components/WeatherWidget';
 
 // Mock data generator for sensor metrics not in the CSV
@@ -30,9 +31,10 @@ const findClosestDate = (dates, target) => {
   , dates[0]);
 };
 
-export default function NowScreen({ field, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [] }) {
+export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [] }) {
   const [dataMode, setDataMode] = useState('weekly');
   const [selectedDate, setSelectedDate] = useState(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const dailyForBlock = useMemo(() => {
     if (!field) return [];
@@ -73,7 +75,17 @@ export default function NowScreen({ field, studyAreaGeojson, dailyIrrigation = [
     const isSelected = feature.properties.BLOCK === field.BLOCK;
     return isSelected
       ? { color: '#fbc02d', weight: 3, fillColor: '#fff176', fillOpacity: 0.5 }
-      : { color: '#ffea00', weight: 1, fillOpacity: 0, dashArray: '4, 4' };
+      : { color: '#ffea00', weight: 1, fillOpacity: 0.05, fillColor: '#2ca25f', dashArray: '4, 4' };
+  };
+
+  // Lets you pick a vineyard block by clicking it on this map too, not just via the sidebar.
+  const onEachFeature = (feature, layer) => {
+    layer.on({
+      click: () => {
+        const fullRecord = fields.find(f => f.BLOCK === feature.properties.BLOCK);
+        if (fullRecord) setSelectedField(fullRecord);
+      }
+    });
   };
 
   // Pulling exact coordinates from vineyard_STAR.csv. Y = Lat, X = Lng
@@ -82,7 +94,7 @@ export default function NowScreen({ field, studyAreaGeojson, dailyIrrigation = [
 
   return (
     <div className="dashboard-wrapper">
-      <div className="dashboard-grid">
+      <div className="dashboard-grid" style={{ gridTemplateColumns: mapExpanded ? '2.6fr 0.8fr' : '1.2fr 2fr', transition: 'grid-template-columns 0.3s ease' }}>
         
         {/* Left Column: Metadata & Map */}
         <div className="col-left">
@@ -154,27 +166,37 @@ export default function NowScreen({ field, studyAreaGeojson, dailyIrrigation = [
               </tbody>
             </table>
           </div>
-          <div className="card map-container-card" style={{ height: '300px' }}>
+          <div className="card map-container-card" style={{ height: mapExpanded ? '650px' : '300px', position: 'relative', transition: 'height 0.3s ease' }}>
+            <button
+              type="button"
+              onClick={() => setMapExpanded(v => !v)}
+              style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000, background: 'white', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+            >
+              {mapExpanded ? 'Collapse Map' : 'Expand Map'}
+            </button>
+
             {/* The Fields Tab Map using the FlyTo Component */}
             <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
-              
-              {/* Vineyard blocks - selected block highlighted in light yellow */}
+
+              {/* Vineyard blocks - selected block highlighted in light yellow, others clickable to select */}
               {studyAreaGeojson && (
                 <GeoJSON
                   key={`fields-tab-blocks-${field.BLOCK}`}
                   data={studyAreaGeojson}
                   style={blockStyle}
+                  onEachFeature={onEachFeature}
                 />
               )}
               <MapFlyTo selectedField={field} />
+              <MapResizeHandler trigger={mapExpanded} />
             </MapContainer>
           </div>
         </div>
 
         {/* Right Column: KPIs & Weather */}
-        <div className="col-right">
-          <div className="kpi-grid">
+        <div className="col-right" style={{ overflow: 'hidden' }}>
+          <div className="kpi-grid" style={{ gridTemplateColumns: mapExpanded ? '1fr' : 'repeat(3, 1fr)', transition: 'grid-template-columns 0.3s ease' }}>
             <div className="card kpi">
               <span className="label">Irrigation Net</span>
               <span className="value">{mockData.irrigationNet} <span className="unit">mm</span></span>
@@ -188,7 +210,7 @@ export default function NowScreen({ field, studyAreaGeojson, dailyIrrigation = [
             <div className="card kpi">
               <span className="label">Net Deficit</span>
               <span className="value">
-                {dataMode === 'daily' && currentRecord ? currentRecord.Net_Deficit_mm : '—'} <span className="unit">{dataMode === 'daily' ? 'mm' : '(daily only)'}</span>
+                {currentRecord ? currentRecord.Net_Deficit_mm : '—'} <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>
               </span>
             </div>
             <div className="card kpi">
@@ -206,7 +228,7 @@ export default function NowScreen({ field, studyAreaGeojson, dailyIrrigation = [
           </div>
           
           <div className="card weather-card">
-            <WeatherWidget lat={lat} lng={lng} />
+            <WeatherWidget lat={lat} lng={lng} date={selectedDate} />
           </div>
         </div>
       </div>
