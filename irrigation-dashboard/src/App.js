@@ -29,7 +29,7 @@ export default function App() {
     .then(data => setDailyIrrigation(data))
     .catch(error => console.error("Error loading daily irrigation data:", error));
 
-    fetch(`${process.env.PUBLIC_URL}/data/Weekly_block.json`)
+    fetch(`${process.env.PUBLIC_URL}/data/weekly_irrigation_final.json`)
     .then(response => response.json())
     .then(data => setWeeklyIrrigation(data))
     .catch(error => console.error("Error loading weekly irrigation data:", error));
@@ -76,6 +76,8 @@ export default function App() {
           {activeTab === 'Fields' && timeframe === 'Now' && (
             <NowScreen
               field={selectedField}
+              fields={fieldsData}
+              setSelectedField={setSelectedField}
               studyAreaGeojson={studyAreaGeojson}
               dailyIrrigation={dailyIrrigation}
               weeklyIrrigation={weeklyIrrigation}
