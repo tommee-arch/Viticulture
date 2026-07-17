@@ -83,17 +83,18 @@ export default function MapTab({ geojsonData, studyAreaGeojson, selectedField, s
 
           {/* NEW: Tokara Study Area Boundary */}
           <LayersControl.Overlay checked name="Study Area Boundary">
-            {studyAreaGeojson && (
-              <GeoJSON 
-                data={studyAreaGeojson} 
-                style={{ 
-                  color: '#ffea00', // Bright yellow
-                  weight: 3, 
-                  fillOpacity: 0,   // Hollow inside
-                  dashArray: '5, 5' // Dashed line effect
-                }} 
-              />
-            )}
+          {studyAreaGeojson && (
+            <GeoJSON 
+              key="tokara-study-area" // Forces React to treat this as a unique element
+              data={studyAreaGeojson}
+              style={{
+              color: "#ff7800",
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.1
+              }}
+            />
+          )}
           </LayersControl.Overlay>
 
           {/* Vineyard Shapefiles Layer */}
