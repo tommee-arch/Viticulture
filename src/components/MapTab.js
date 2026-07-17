@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { MapContainer, TileLayer, LayersControl, ScaleControl, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './MapFlyTo';
+import LabelVisibilityToggler from './LabelVisibilityToggler';
+import CursorPosition from './CursorPosition';
 
 export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields }) {
   // State for the fill opacity slider (0 to 1)
@@ -20,12 +22,22 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
 
   // Handle clicking directly on a map shape
   const onEachFeature = (feature, layer) => {
+    // Block number label - hidden/shown by LabelVisibilityToggler based on zoom.
+    layer.bindTooltip(feature.properties.BLOCK, {
+      permanent: true,
+      direction: 'center',
+      className: 'block-label'
+    });
+
     layer.on({
       click: () => {
         // Merge in the full CSV record (Area, Farm, season, etc.) when we have one,
         // so the info box below shows more than just what's in the GeoJSON properties.
         const fullRecord = fields?.find(f => f.BLOCK === feature.properties.BLOCK);
-        setSelectedField(fullRecord || feature.properties);
+        const clickedRecord = fullRecord || feature.properties;
+        // Clicking the already-selected block deselects it instead of adding a
+        // separate "clear" button - keeps the map uncluttered.
+        setSelectedField(prev => (prev && prev.BLOCK === clickedRecord.BLOCK) ? null : clickedRecord);
       }
     });
   };
@@ -86,6 +98,12 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
         
         {/* Dynamic Scale Bar */}
         <ScaleControl position="bottomleft" imperial={false} />
+
+        {/* Live lat/lng readout, docked next to the scale bar */}
+        <CursorPosition />
+
+        {/* Shows/hides the block-number labels depending on how zoomed in we are */}
+        <LabelVisibilityToggler />
 
         {/* 2 Basemaps to choose from */}
         <LayersControl position="topleft">

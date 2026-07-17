@@ -296,3 +296,44 @@ body {
     border: 1px solid #000;
   }
 }
+
+/* Vineyard block number labels (Home tab map) - hidden until zoomed in far
+   enough that they're useful, and kept lightweight so the block's fill color
+   (the actual data) stays the visually dominant thing on screen. */
+.leaflet-tooltip.block-label {
+  display: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow:
+    -1px -1px 1px rgba(0, 0, 0, 0.85),
+     1px -1px 1px rgba(0, 0, 0, 0.85),
+    -1px  1px 1px rgba(0, 0, 0, 0.85),
+     1px  1px 1px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+
+.leaflet-tooltip.block-label::before {
+  display: none;
+}
+
+.labels-visible .leaflet-tooltip.block-label {
+  display: block;
+}
+
+/* Cursor lat/lng readout, docked in the same corner as the scale bar */
+.cursor-position-control {
+  background: white;
+  padding: 2px 8px;
+  margin-top: 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: monospace;
+  color: #333;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
