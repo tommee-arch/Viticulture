@@ -13,14 +13,26 @@ export default function App() {
   const [fieldsData, setFieldsData] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [studyAreaGeojson, setStudyAreaGeojson] = useState(null);
+  const [dailyIrrigation, setDailyIrrigation] = useState([]);
+  const [weeklyIrrigation, setWeeklyIrrigation] = useState([]);
   useEffect(() => {
     // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
     const csvUrl = process.env.PUBLIC_URL + '/data/vineyard_STAR.csv';
-    
+
     fetch(`${process.env.PUBLIC_URL}/data/Tokara_Study_Area.json`)
     .then(response => response.json())
     .then(data => setStudyAreaGeojson(data))
     .catch(error => console.error("Error loading Study Area:", error));
+
+    fetch(`${process.env.PUBLIC_URL}/data/daily_irrigation_final.json`)
+    .then(response => response.json())
+    .then(data => setDailyIrrigation(data))
+    .catch(error => console.error("Error loading daily irrigation data:", error));
+
+    fetch(`${process.env.PUBLIC_URL}/data/Weekly_block.json`)
+    .then(response => response.json())
+    .then(data => setWeeklyIrrigation(data))
+    .catch(error => console.error("Error loading weekly irrigation data:", error));
 
 
     Papa.parse(csvUrl, {
@@ -62,7 +74,12 @@ export default function App() {
           )}
 
           {activeTab === 'Fields' && timeframe === 'Now' && (
-            <NowScreen field={selectedField} studyAreaGeojson={studyAreaGeojson} />
+            <NowScreen
+              field={selectedField}
+              studyAreaGeojson={studyAreaGeojson}
+              dailyIrrigation={dailyIrrigation}
+              weeklyIrrigation={weeklyIrrigation}
+            />
           )}
           
           {activeTab === 'Fields' && timeframe === 'Predictive' && (
