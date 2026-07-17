@@ -10,6 +10,7 @@ import './App.css';
 export default function App() {
   const [activeTab, setActiveTab] = useState('Fields');
   const [timeframe, setTimeframe] = useState('Now');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [fieldsData, setFieldsData] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [studyAreaGeojson, setStudyAreaGeojson] = useState(null);
@@ -53,16 +54,22 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         fieldsData={fieldsData}
         selectedField={selectedField}
         setSelectedField={setSelectedField}
+        collapsed={sidebarCollapsed}
       />
       <div className="main-content">
-        <TopBar timeframe={timeframe} setTimeframe={setTimeframe} />
-        
+        <TopBar
+          timeframe={timeframe}
+          setTimeframe={setTimeframe}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed(v => !v)}
+        />
+
         <main className="content-area">
           {activeTab === 'Home' && (
             <MapTab
@@ -70,6 +77,7 @@ export default function App() {
               studyAreaGeojson={studyAreaGeojson}
               selectedField={selectedField}
               setSelectedField={setSelectedField}
+              dailyIrrigation={dailyIrrigation}
             />
           )}
 

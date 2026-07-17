@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import WeatherWidget from './components/WeatherWidget';
+import { netDeficitColor, evapotranspirationColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH } from './utils/colorScale';
 
 // Mock data generator for sensor metrics not in the CSV
 const generateMockData = (blockName) => {
@@ -35,6 +36,8 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const [dataMode, setDataMode] = useState('weekly');
   const [selectedDate, setSelectedDate] = useState(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  // 'selection' (yellow highlight), 'et' (Evapotranspiration), or 'deficit' (Net Deficit)
+  const [colorMode, setColorMode] = useState('selection');
 
   const dailyForBlock = useMemo(() => {
     if (!field) return [];
@@ -52,6 +55,20 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
 
   const activeSeries = dataMode === 'daily' ? dailyForBlock : weeklyForBlock;
   const availableDates = useMemo(() => activeSeries.map(d => d.Date), [activeSeries]);
+
+  // Every block's reading on the selected date, for the ET/Net Deficit map overlays.
+  const activeFullSeries = dataMode === 'daily' ? dailyIrrigation : weeklyIrrigation;
+  const recordsForSelectedDate = useMemo(() => {
+    const map = {};
+    if (!selectedDate) return map;
+    activeFullSeries.forEach(r => {
+      if (r.Date === selectedDate) map[r.Block_ID] = r;
+    });
+    return map;
+  }, [activeFullSeries, selectedDate]);
+
+  const etMaxAll = useMemo(() => Math.max(0, ...Object.values(recordsForSelectedDate).map(r => r.ETa_mm ?? 0)), [recordsForSelectedDate]);
+  const deficitMaxAll = useMemo(() => Math.max(0, ...Object.values(recordsForSelectedDate).map(r => r.Net_Deficit_mm ?? 0)), [recordsForSelectedDate]);
 
   // Whenever the block or the weekly/daily mode changes, snap to the most recent
   // available date unless the current selection is still valid for the new series.
@@ -71,8 +88,23 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   };
 
   // Highlight the selected block in light yellow; other blocks just get a faint outline.
+  // In ET/Net Deficit mode, fill shows the data instead and selection is a border only.
   const blockStyle = (feature) => {
     const isSelected = feature.properties.BLOCK === field.BLOCK;
+
+    if (colorMode === 'et' || colorMode === 'deficit') {
+      const record = recordsForSelectedDate[feature.properties.BLOCK];
+      const fillColor = colorMode === 'et'
+        ? evapotranspirationColor(record?.ETa_mm, etMaxAll)
+        : netDeficitColor(record?.Net_Deficit_mm, deficitMaxAll);
+      return {
+        color: isSelected ? '#fbc02d' : 'white',
+        weight: isSelected ? 3 : 1,
+        fillColor,
+        fillOpacity: 0.6
+      };
+    }
+
     return isSelected
       ? { color: '#fbc02d', weight: 3, fillColor: '#fff176', fillOpacity: 0.5 }
       : { color: '#ffea00', weight: 1, fillOpacity: 0.05, fillColor: '#2ca25f', dashArray: '4, 4' };
@@ -167,6 +199,23 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
             </table>
           </div>
           <div className="card map-container-card" style={{ height: mapExpanded ? '650px' : '300px', position: 'relative', transition: 'height 0.3s ease' }}>
+            <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000, display: 'flex', gap: '4px' }}>
+              {[
+                { key: 'selection', label: 'Sel' },
+                { key: 'et', label: 'ET' },
+                { key: 'deficit', label: 'Deficit' }
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setColorMode(key)}
+                  style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: colorMode === key ? '#2ca25f' : 'white', color: colorMode === key ? 'white' : '#333', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <button
               type="button"
               onClick={() => setMapExpanded(v => !v)}
@@ -175,6 +224,19 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
               {mapExpanded ? 'Collapse Map' : 'Expand Map'}
             </button>
 
+            {colorMode !== 'selection' && (
+              <div style={{ position: 'absolute', bottom: '10px', left: '10px', zIndex: 1000, background: 'white', padding: '6px 10px', borderRadius: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', fontSize: '10px', minWidth: '140px' }}>
+                <div style={{ color: '#666', marginBottom: '3px' }}>
+                  {colorMode === 'et' ? 'Evapotranspiration (mm)' : 'Net Deficit (mm)'} - {selectedDate}
+                </div>
+                <div style={{ height: '8px', borderRadius: '3px', background: colorMode === 'et' ? gradientCss(ET_LOW, ET_HIGH) : gradientCss(NET_DEFICIT_LOW, NET_DEFICIT_HIGH) }}></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', marginTop: '2px' }}>
+                  <span>0</span>
+                  <span>{(colorMode === 'et' ? etMaxAll : deficitMaxAll).toFixed(1)}</span>
+                </div>
+              </div>
+            )}
+
             {/* The Fields Tab Map using the FlyTo Component */}
             <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
@@ -182,7 +244,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
               {/* Vineyard blocks - selected block highlighted in light yellow, others clickable to select */}
               {studyAreaGeojson && (
                 <GeoJSON
-                  key={`fields-tab-blocks-${field.BLOCK}`}
+                  key={`fields-tab-blocks-${field.BLOCK}-${colorMode}-${selectedDate}-${dataMode}`}
                   data={studyAreaGeojson}
                   style={blockStyle}
                   onEachFeature={onEachFeature}
