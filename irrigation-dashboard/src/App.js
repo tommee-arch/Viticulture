@@ -24,7 +24,7 @@ export default function App() {
       complete: (results) => {
         if (results.data && results.data.length > 0) {
           // Filter out any empty rows
-          const validData = results.data.filter(row => row.FieldName);
+          const validData = results.data.filter(row => row.BLOCK);
           setFieldsData(validData);
           setSelectedField(validData[0]);
         }
