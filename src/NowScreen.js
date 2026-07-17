@@ -1,9 +1,9 @@
 import React from 'react';
-import ZoomableMap from './components/ZoomableMap';
+import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
+import MapFlyTo from './components/MapFlyTo';
 import WeatherWidget from './components/WeatherWidget';
 
-// A simple function to generate deterministic pseudo-random numbers based on the Block ID.
-// This makes the UI prototype look fully dynamic and functional for presentations.
+// Mock data generator for sensor metrics not in the CSV
 const generateMockData = (blockName) => {
   let hash = 0;
   for (let i = 0; i < blockName.length; i++) {
@@ -12,25 +12,23 @@ const generateMockData = (blockName) => {
   const absHash = Math.abs(hash);
   
   return {
-    et: (3.0 + (absHash % 30) / 10).toFixed(1), // Ranges from 3.0 to 5.9 mm/day
-    ndvi: (0.55 + (absHash % 35) / 100).toFixed(2), // Ranges from 0.55 to 0.89
-    soilMoisture: 25 + (absHash % 25), // Ranges from 25% to 49%
-    irrigationNet: 10 + (absHash % 15), // Ranges from 10 to 24 mm
+    et: (3.0 + (absHash % 30) / 10).toFixed(1),
+    ndvi: (0.55 + (absHash % 35) / 100).toFixed(2),
+    soilMoisture: 25 + (absHash % 25),
+    irrigationNet: 10 + (absHash % 15),
     health: (absHash % 100) > 80 ? 'Good' : 'Excellent',
-    slope: 2 + (absHash % 8), // Ranges from 2% to 9%
     waterUse: 110000 + (absHash % 30000)
   };
 };
 
-export default function NowScreen({ field }) {
+export default function NowScreen({ field, geojsonData }) {
   if (!field) return <div className="loading">Select a field to view data.</div>;
 
-  // Generate the dynamic metrics based on the specific block name clicked
   const mockData = generateMockData(field.BLOCK || 'default');
 
-  // Fallback coordinates since they aren't in Vineyard_Areas.csv
-  const lat = field.Lat || -33.9321;
-  const lng = field.Lng || 18.8602;
+  // Pulling exact coordinates from vineyard_STAR.csv. Y = Lat, X = Lng
+  const lat = field.Y || -33.9007;
+  const lng = field.X || 18.9106;
 
   return (
     <div className="dashboard-wrapper">
@@ -39,25 +37,31 @@ export default function NowScreen({ field }) {
         {/* Left Column: Metadata & Map */}
         <div className="col-left">
           <div className="card field-meta">
-            <h2>Block {field.BLOCK}</h2>
+            <h2>{field.Farm || 'Farm'} - Block {field.BLOCK}</h2>
             <table>
               <tbody>
-                <tr><td>Cultivar Type</td><td>{field.CULTIVAR}</td></tr>
+                <tr><td>Cultivar</td><td>{field.CULTIVAR}</td></tr>
                 <tr><td>Area</td><td>{Number(field.Area).toFixed(3)} ha</td></tr>
-                <tr><td>Growth Stage</td><td>Veraison</td></tr>
+                {/* New data from vineyard_STAR.csv */}
+                <tr><td>Season</td><td>{field.season || 'Current'}</td></tr>
+                <tr><td>Budbreak</td><td>{field.Budbreak || 'Pending'}</td></tr>
+                <tr><td>Flowering</td><td>{field.Flowering || 'Pending'}</td></tr>
                 <tr>
                   <td>Plant Health</td>
                   <td className={mockData.health === 'Excellent' ? 'status-good' : 'status-warning'}>
                     {mockData.health}
                   </td>
                 </tr>
-                <tr><td>Slope Aspect</td><td>NW</td></tr>
-                <tr><td>Average Slope</td><td>{mockData.slope}%</td></tr>
               </tbody>
             </table>
           </div>
-          <div className="card map-container-card">
-            <ZoomableMap lat={lat} lng={lng} />
+          <div className="card map-container-card" style={{ height: '300px' }}>
+            {/* The Fields Tab Map using the FlyTo Component */}
+            <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+              {geojsonData && <GeoJSON data={geojsonData} style={{ color: '#ff7800', fillOpacity: 0.2 }} />}
+              <MapFlyTo selectedField={field} />
+            </MapContainer>
           </div>
         </div>
 
@@ -83,10 +87,6 @@ export default function NowScreen({ field }) {
             <div className="card kpi">
               <span className="label">NDVI Index</span>
               <span className="value">{mockData.ndvi}</span>
-            </div>
-            <div className="card kpi">
-              <span className="label">Water Use Target</span>
-              <span className="value">{mockData.waterUse.toLocaleString()} <span className="unit">L/ha</span></span>
             </div>
           </div>
           
