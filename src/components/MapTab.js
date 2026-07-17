@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MapContainer, TileLayer, LayersControl, ScaleControl, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './MapFlyTo';
 
-export default function MapTab({ geojsonData, studyAreaGeojson, selectedField, setSelectedField }) {
+export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields }) {
   // State for the fill opacity slider (0 to 1)
   const [fillOpacity, setFillOpacity] = useState(0.5);
 
@@ -22,10 +22,10 @@ export default function MapTab({ geojsonData, studyAreaGeojson, selectedField, s
   const onEachFeature = (feature, layer) => {
     layer.on({
       click: () => {
-        // Find the matching data from your CSV state (assuming it's available or passed down)
-        // If you pass down the full CSV array here, you can set the full object.
-        // For now, we set it based on the GeoJSON properties.
-        setSelectedField(feature.properties);
+        // Merge in the full CSV record (Area, Farm, season, etc.) when we have one,
+        // so the info box below shows more than just what's in the GeoJSON properties.
+        const fullRecord = fields?.find(f => f.BLOCK === feature.properties.BLOCK);
+        setSelectedField(fullRecord || feature.properties);
       }
     });
   };
@@ -47,6 +47,27 @@ export default function MapTab({ geojsonData, studyAreaGeojson, selectedField, s
           style={{ width: '100%', display: 'block', marginTop: '5px' }}
         />
       </div>
+
+      {/* Attribute Info Box - shows details for the clicked/selected block */}
+      {selectedField && (
+        <div className="field-info-box" style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 1000, background: 'white', padding: '10px 14px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', minWidth: '190px' }}>
+          <h4 style={{ margin: '0 0 6px 0', fontSize: '14px' }}>Block {selectedField.BLOCK}</h4>
+          <table style={{ fontSize: '12px', width: '100%' }}>
+            <tbody>
+              {selectedField.Farm && (
+                <tr><td style={{ color: '#666', paddingRight: '10px' }}>Farm</td><td>{selectedField.Farm}</td></tr>
+              )}
+              <tr><td style={{ color: '#666', paddingRight: '10px' }}>Cultivar</td><td>{selectedField.CULTIVAR}</td></tr>
+              {selectedField.Area != null && (
+                <tr><td style={{ color: '#666', paddingRight: '10px' }}>Area</td><td>{Number(selectedField.Area).toFixed(3)} ha</td></tr>
+              )}
+              {selectedField.season && (
+                <tr><td style={{ color: '#666', paddingRight: '10px' }}>Season</td><td>{selectedField.season}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Dynamic Legend Overlay */}
       <div className="map-legend" style={{ position: 'absolute', bottom: '30px', right: '20px', zIndex: 1000, background: 'white', padding: '10px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
@@ -81,34 +102,18 @@ export default function MapTab({ geojsonData, studyAreaGeojson, selectedField, s
             />
           </LayersControl.BaseLayer>
 
-          {/* NEW: Tokara Study Area Boundary */}
-          <LayersControl.Overlay checked name="Study Area Boundary">
+          {/* Vineyard Blocks - green by default, orange when selected, opacity controlled by the slider */}
+          <LayersControl.Overlay checked name="Vineyard Blocks">
           {studyAreaGeojson && (
-            <GeoJSON 
-              key="tokara-study-area" // Forces React to treat this as a unique element
+            <GeoJSON
+              // Remounts the layer whenever the selection or opacity changes so Leaflet
+              // actually repaints - a stale style prop alone doesn't force a redraw.
+              key={`blocks-${selectedField?.BLOCK}-${fillOpacity}`}
               data={studyAreaGeojson}
-              style={{
-              color: "#ff7800",
-              weight: 2,
-              opacity: 1,
-              fillOpacity: 0.1
-              }}
+              style={styleGeoJSON}
+              onEachFeature={onEachFeature}
             />
           )}
-          </LayersControl.Overlay>
-
-          {/* Vineyard Shapefiles Layer */}
-          <LayersControl.Overlay checked name="Vineyard Boundaries">
-<GeoJSON 
-  data={studyAreaGeojson}
-  style={{
-    color: "#ff7800",      // Border line color
-    weight: 2,             // Border line thickness (pixels)
-    opacity: 1.0,          // Border line opacity (0.0 to 1.0)
-    fillColor: "#ff7800",  // Inside polygon color
-    fillOpacity: 0.5       // Inside polygon opacity (0.0 to 1.0)
-  }}
-/>
           </LayersControl.Overlay>
         </LayersControl>
 

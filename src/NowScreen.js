@@ -21,10 +21,18 @@ const generateMockData = (blockName) => {
   };
 };
 
-export default function NowScreen({ field, geojsonData, studyAreaGeojson }) {
+export default function NowScreen({ field, studyAreaGeojson }) {
   if (!field) return <div className="loading">Select a field to view data.</div>;
 
   const mockData = generateMockData(field.BLOCK || 'default');
+
+  // Highlight the selected block in light yellow; other blocks just get a faint outline.
+  const blockStyle = (feature) => {
+    const isSelected = feature.properties.BLOCK === field.BLOCK;
+    return isSelected
+      ? { color: '#fbc02d', weight: 3, fillColor: '#fff176', fillOpacity: 0.5 }
+      : { color: '#ffea00', weight: 1, fillOpacity: 0, dashArray: '4, 4' };
+  };
 
   // Pulling exact coordinates from vineyard_STAR.csv. Y = Lat, X = Lng
   const lat = field.Y || -33.9007;
@@ -60,16 +68,14 @@ export default function NowScreen({ field, geojsonData, studyAreaGeojson }) {
             <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
               
-              {/* NEW: Study Area Boundary Layer */}
+              {/* Vineyard blocks - selected block highlighted in light yellow */}
               {studyAreaGeojson && (
-                <GeoJSON 
-                  data={studyAreaGeojson} 
-                  style={{ color: '#ffea00', weight: 2, fillOpacity: 0, dashArray: '4, 4' }} 
+                <GeoJSON
+                  key={`fields-tab-blocks-${field.BLOCK}`}
+                  data={studyAreaGeojson}
+                  style={blockStyle}
                 />
               )}
-
-              {/* Existing Vineyard Layer */}
-              {geojsonData && <GeoJSON data={geojsonData} style={{ color: '#ff7800', fillOpacity: 0.2 }} />}
               <MapFlyTo selectedField={field} />
             </MapContainer>
           </div>
