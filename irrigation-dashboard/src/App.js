@@ -15,7 +15,7 @@ export default function App() {
 
   useEffect(() => {
     // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
-    const csvUrl = process.env.PUBLIC_URL + '/data/Vineyard_Areas.csv';
+    const csvUrl = process.env.PUBLIC_URL + '/data/vineyard_STAR.csv';
     
     Papa.parse(csvUrl, {
       download: true,
