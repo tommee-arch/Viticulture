@@ -52,10 +52,17 @@ export default function App() {
         <TopBar timeframe={timeframe} setTimeframe={setTimeframe} />
         
         <main className="content-area">
-          {activeTab === 'Home' && <MapTab fields={fieldsData} />}
-          
+          {activeTab === 'Home' && (
+            <MapTab
+              fields={fieldsData}
+              studyAreaGeojson={studyAreaGeojson}
+              selectedField={selectedField}
+              setSelectedField={setSelectedField}
+            />
+          )}
+
           {activeTab === 'Fields' && timeframe === 'Now' && (
-            <NowScreen field={selectedField} />
+            <NowScreen field={selectedField} studyAreaGeojson={studyAreaGeojson} />
           )}
           
           {activeTab === 'Fields' && timeframe === 'Predictive' && (
