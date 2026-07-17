@@ -25,7 +25,7 @@ export function VineyardLayer() {
         console.log("GeoJSON loaded into state:", data); // Check console for this!
         setVineyards(data);
       })
-      .catch(err => console.error("Error loading vineyard GeoJSON:", err));
+      .catch(err => console.error("Error loading vineyard GeoJSON:", err)); 
   }, []);
 
   return vineyards ? (
