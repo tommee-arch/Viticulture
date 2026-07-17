@@ -12,11 +12,17 @@ export default function App() {
   const [timeframe, setTimeframe] = useState('Now');
   const [fieldsData, setFieldsData] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
-
+  const [studyAreaGeojson, setStudyAreaGeojson] = useState(null);
   useEffect(() => {
     // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
     const csvUrl = process.env.PUBLIC_URL + '/data/vineyard_STAR.csv';
     
+    fetch(`${process.env.PUBLIC_URL}/data/Tokara_Study_Area.json`)
+    .then(response => response.json())
+    .then(data => setStudyAreaGeojson(data))
+    .catch(error => console.error("Error loading Study Area:", error));
+
+
     Papa.parse(csvUrl, {
       download: true,
       header: true,
