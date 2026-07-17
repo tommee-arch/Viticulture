@@ -50,7 +50,7 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
 
       {/* Attribute Info Box - shows details for the clicked/selected block */}
       {selectedField && (
-        <div className="field-info-box" style={{ position: 'absolute', top: '20px', left: '40px', zIndex: 1000, background: 'white', padding: '10px 14px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', minWidth: '190px' }}>
+        <div className="field-info-box" style={{ position: 'absolute', top: '20px', left: '70px', zIndex: 1000, background: 'white', padding: '10px 14px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', minWidth: '190px' }}>
           <h4 style={{ margin: '0 0 6px 0', fontSize: '14px' }}>Block {selectedField.BLOCK}</h4>
           <table style={{ fontSize: '12px', width: '100%' }}>
             <tbody>
