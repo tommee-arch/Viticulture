@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import logo from 'data/sprinklers.png';
+import logo from '../data/sprinklers.png';
 export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedField, setSelectedField }) {
   const [isDecisionSupportOpen, setIsDecisionSupportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
