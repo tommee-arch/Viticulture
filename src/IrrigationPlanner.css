@@ -166,7 +166,7 @@
 .ai-header h3 {
   margin: 0;
   background: -webkit-linear-gradient(45deg, #4285f4, #9b72cb, #d96570);
-  -webkit-background-clip: text;
+
   -webkit-text-fill-color: transparent;
 }
 
