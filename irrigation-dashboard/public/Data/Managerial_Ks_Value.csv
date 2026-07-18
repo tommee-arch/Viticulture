@@ -1,0 +1,13 @@
+﻿,,Managerial Ks Values,,,
+Cultivars,Type of hydrology mech,Budbreak,Flowering,PreVeraison,Harvesting
+Chardonnay,Anisohydric-Isohydric,1,1,0.6,0.75
+CheninBlanc,Anisohydric-Isohydric,1,1,0.6,0.75
+SauvignonBlanc,Isohydric,1,1,0.75,0.85
+Semillon,Anisohydric,1,1,0.5,0.65
+Merlot,Anisohydric,1,1,0.5,0.65
+Pinotage,Isohydric,1,1,0.75,0.85
+Shiraz,Anisohydric,1,1,0.5,0.65
+Malbec,Anisohydric-Isohydric,1,1,0.6,0.75
+PetitVerdot,Anisohydric-Isohydric,1,1,0.6,0.75
+CabFranc,Anisohydric,1,1,0.5,0.65
+CabernetSauvignon,Anisohydric-Isohydric,1,1,0.6,0.75
