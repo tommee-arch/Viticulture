@@ -1,11 +1,17 @@
 // Shared color ramps for the irrigation-data map overlays (Home tab + Fields tab).
 // Net Deficit: green (no deficit) -> red (high deficit).
 // Evapotranspiration: white (low) -> blue (high).
+// NDVI: brown/red (low vegetation vigor) -> green (high vigor).
+// NDWI: dry brown/tan (low water content) -> teal-blue (high water content).
 
 export const NET_DEFICIT_LOW = [46, 204, 113];
 export const NET_DEFICIT_HIGH = [231, 76, 60];
 export const ET_LOW = [255, 255, 255];
 export const ET_HIGH = [21, 101, 192];
+export const NDVI_LOW = [165, 42, 42];
+export const NDVI_HIGH = [34, 139, 34];
+export const NDWI_LOW = [140, 100, 40];
+export const NDWI_HIGH = [0, 150, 200];
 
 const NO_DATA_COLOR = '#9e9e9e';
 
@@ -16,14 +22,26 @@ const lerpColor = (c1, c2, t) => {
   return `rgb(${lerpChannel(c1[0], c2[0], clamped)}, ${lerpChannel(c1[1], c2[1], clamped)}, ${lerpChannel(c1[2], c2[2], clamped)})`;
 };
 
+// Generic min-max interpolation, used by indices (like NDWI) whose domain isn't 0-based.
+export function valueToColor(value, min, max, colorLow, colorHigh) {
+  if (value == null || !Number.isFinite(value) || !(max > min)) return NO_DATA_COLOR;
+  return lerpColor(colorLow, colorHigh, (value - min) / (max - min));
+}
+
 export function netDeficitColor(value, max) {
-  if (value == null || !Number.isFinite(value) || !(max > 0)) return NO_DATA_COLOR;
-  return lerpColor(NET_DEFICIT_LOW, NET_DEFICIT_HIGH, value / max);
+  return valueToColor(value, 0, max, NET_DEFICIT_LOW, NET_DEFICIT_HIGH);
 }
 
 export function evapotranspirationColor(value, max) {
-  if (value == null || !Number.isFinite(value) || !(max > 0)) return NO_DATA_COLOR;
-  return lerpColor(ET_LOW, ET_HIGH, value / max);
+  return valueToColor(value, 0, max, ET_LOW, ET_HIGH);
+}
+
+export function ndviColor(value, min, max) {
+  return valueToColor(value, min, max, NDVI_LOW, NDVI_HIGH);
+}
+
+export function ndwiColor(value, min, max) {
+  return valueToColor(value, min, max, NDWI_LOW, NDWI_HIGH);
 }
 
 export function gradientCss(c1, c2) {

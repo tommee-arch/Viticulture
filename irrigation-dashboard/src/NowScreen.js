@@ -3,7 +3,8 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import WeatherWidget from './components/WeatherWidget';
-import { netDeficitColor, evapotranspirationColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH } from './utils/colorScale';
+import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH } from './utils/colorScale';
+import { findClosestDate } from './utils/dateLookup';
 
 // Mock data generator for sensor metrics not in the CSV
 const generateMockData = (blockName) => {
@@ -15,7 +16,6 @@ const generateMockData = (blockName) => {
 
   return {
     et: (3.0 + (absHash % 30) / 10).toFixed(1),
-    ndvi: (0.55 + (absHash % 35) / 100).toFixed(2),
     soilMoisture: 25 + (absHash % 25),
     irrigationNet: 10 + (absHash % 15),
     health: (absHash % 100) > 80 ? 'Good' : 'Excellent',
@@ -23,16 +23,7 @@ const generateMockData = (blockName) => {
   };
 };
 
-// Finds the entry in a sorted date list closest to a target date (used when the
-// calendar picker is set to a day that isn't in the dataset).
-const findClosestDate = (dates, target) => {
-  const targetTime = new Date(target).getTime();
-  return dates.reduce((closest, d) =>
-    Math.abs(new Date(d).getTime() - targetTime) < Math.abs(new Date(closest).getTime() - targetTime) ? d : closest
-  , dates[0]);
-};
-
-export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [] }) {
+export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats }) {
   const [dataMode, setDataMode] = useState('weekly');
   const [selectedDate, setSelectedDate] = useState(null);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -70,6 +61,21 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const etMaxAll = useMemo(() => Math.max(0, ...Object.values(recordsForSelectedDate).map(r => r.ETa_mm ?? 0)), [recordsForSelectedDate]);
   const deficitMaxAll = useMemo(() => Math.max(0, ...Object.values(recordsForSelectedDate).map(r => r.Net_Deficit_mm ?? 0)), [recordsForSelectedDate]);
 
+  // NDVI/NDWI come from sparse satellite-pass dates, not the daily/weekly irrigation
+  // calendar - so find whichever of those passes is closest to the date selected above.
+  const indexDates = useMemo(() => ndviStats?.dates || ndwiSoilStats?.dates || [], [ndviStats, ndwiSoilStats]);
+  const indexDate = useMemo(() => findClosestDate(indexDates, selectedDate), [indexDates, selectedDate]);
+
+  const ndviByBlockAtDate = useMemo(() => ndviStats?.data?.[indexDate] || {}, [ndviStats, indexDate]);
+  const ndviValues = useMemo(() => Object.values(ndviByBlockAtDate).map(b => b.mean).filter(Number.isFinite), [ndviByBlockAtDate]);
+  const ndviMinAll = ndviValues.length ? Math.min(...ndviValues) : 0;
+  const ndviMaxAll = ndviValues.length ? Math.max(...ndviValues) : 1;
+
+  const ndwiByBlockAtDate = useMemo(() => ndwiSoilStats?.data?.[indexDate] || {}, [ndwiSoilStats, indexDate]);
+  const ndwiValues = useMemo(() => Object.values(ndwiByBlockAtDate).map(b => b.ndwi?.mean).filter(Number.isFinite), [ndwiByBlockAtDate]);
+  const ndwiMinAll = ndwiValues.length ? Math.min(...ndwiValues) : 0;
+  const ndwiMaxAll = ndwiValues.length ? Math.max(...ndwiValues) : 1;
+
   // Whenever the block or the weekly/daily mode changes, snap to the most recent
   // available date unless the current selection is still valid for the new series.
   useEffect(() => {
@@ -81,6 +87,8 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const mockData = generateMockData(field.BLOCK || 'default');
   const selectedIndex = Math.max(0, availableDates.indexOf(selectedDate));
   const currentRecord = activeSeries[selectedIndex] || null;
+  const currentNdvi = ndviByBlockAtDate[field.BLOCK]?.mean ?? null;
+  const currentNdwi = ndwiByBlockAtDate[field.BLOCK]?.ndwi?.mean ?? null;
 
   const handleDatePick = (dateStr) => {
     if (!dateStr || availableDates.length === 0) return;
@@ -88,15 +96,22 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   };
 
   // Highlight the selected block in light yellow; other blocks just get a faint outline.
-  // In ET/Net Deficit mode, fill shows the data instead and selection is a border only.
+  // In ET/Net Deficit/NDVI/NDWI mode, fill shows the data instead and selection is a border only.
   const blockStyle = (feature) => {
     const isSelected = feature.properties.BLOCK === field.BLOCK;
 
-    if (colorMode === 'et' || colorMode === 'deficit') {
-      const record = recordsForSelectedDate[feature.properties.BLOCK];
-      const fillColor = colorMode === 'et'
-        ? evapotranspirationColor(record?.ETa_mm, etMaxAll)
-        : netDeficitColor(record?.Net_Deficit_mm, deficitMaxAll);
+    if (colorMode === 'et' || colorMode === 'deficit' || colorMode === 'ndvi' || colorMode === 'ndwi') {
+      let fillColor;
+      if (colorMode === 'et' || colorMode === 'deficit') {
+        const record = recordsForSelectedDate[feature.properties.BLOCK];
+        fillColor = colorMode === 'et'
+          ? evapotranspirationColor(record?.ETa_mm, etMaxAll)
+          : netDeficitColor(record?.Net_Deficit_mm, deficitMaxAll);
+      } else if (colorMode === 'ndvi') {
+        fillColor = ndviColor(ndviByBlockAtDate[feature.properties.BLOCK]?.mean, ndviMinAll, ndviMaxAll);
+      } else {
+        fillColor = ndwiColor(ndwiByBlockAtDate[feature.properties.BLOCK]?.ndwi?.mean, ndwiMinAll, ndwiMaxAll);
+      }
       return {
         color: isSelected ? '#fbc02d' : 'white',
         weight: isSelected ? 3 : 1,
@@ -199,11 +214,13 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
             </table>
           </div>
           <div className="card map-container-card" style={{ height: mapExpanded ? '650px' : '300px', position: 'relative', transition: 'height 0.3s ease' }}>
-            <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000, display: 'flex', gap: '4px' }}>
+            <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000, display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '160px' }}>
               {[
                 { key: 'selection', label: 'Sel' },
                 { key: 'et', label: 'ET' },
-                { key: 'deficit', label: 'Deficit' }
+                { key: 'deficit', label: 'Deficit' },
+                { key: 'ndvi', label: 'NDVI' },
+                { key: 'ndwi', label: 'NDWI' }
               ].map(({ key, label }) => (
                 <button
                   key={key}
@@ -226,14 +243,30 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
 
             {colorMode !== 'selection' && (
               <div style={{ position: 'absolute', bottom: '10px', left: '10px', zIndex: 1000, background: 'white', padding: '6px 10px', borderRadius: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', fontSize: '10px', minWidth: '140px' }}>
-                <div style={{ color: '#666', marginBottom: '3px' }}>
-                  {colorMode === 'et' ? 'Evapotranspiration (mm)' : 'Net Deficit (mm)'} - {selectedDate}
-                </div>
-                <div style={{ height: '8px', borderRadius: '3px', background: colorMode === 'et' ? gradientCss(ET_LOW, ET_HIGH) : gradientCss(NET_DEFICIT_LOW, NET_DEFICIT_HIGH) }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', marginTop: '2px' }}>
-                  <span>0</span>
-                  <span>{(colorMode === 'et' ? etMaxAll : deficitMaxAll).toFixed(1)}</span>
-                </div>
+                {(colorMode === 'et' || colorMode === 'deficit') && (
+                  <>
+                    <div style={{ color: '#666', marginBottom: '3px' }}>
+                      {colorMode === 'et' ? 'Evapotranspiration (mm)' : 'Net Deficit (mm)'} - {selectedDate}
+                    </div>
+                    <div style={{ height: '8px', borderRadius: '3px', background: colorMode === 'et' ? gradientCss(ET_LOW, ET_HIGH) : gradientCss(NET_DEFICIT_LOW, NET_DEFICIT_HIGH) }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', marginTop: '2px' }}>
+                      <span>0</span>
+                      <span>{(colorMode === 'et' ? etMaxAll : deficitMaxAll).toFixed(1)}</span>
+                    </div>
+                  </>
+                )}
+                {(colorMode === 'ndvi' || colorMode === 'ndwi') && (
+                  <>
+                    <div style={{ color: '#666', marginBottom: '3px' }}>
+                      {colorMode === 'ndvi' ? 'NDVI' : 'NDWI'}{indexDate ? ` - ${indexDate}` : ''}
+                    </div>
+                    <div style={{ height: '8px', borderRadius: '3px', background: colorMode === 'ndvi' ? gradientCss(NDVI_LOW, NDVI_HIGH) : gradientCss(NDWI_LOW, NDWI_HIGH) }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', marginTop: '2px' }}>
+                      <span>{(colorMode === 'ndvi' ? ndviMinAll : ndwiMinAll).toFixed(2)}</span>
+                      <span>{(colorMode === 'ndvi' ? ndviMaxAll : ndwiMaxAll).toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -244,7 +277,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
               {/* Vineyard blocks - selected block highlighted in light yellow, others clickable to select */}
               {studyAreaGeojson && (
                 <GeoJSON
-                  key={`fields-tab-blocks-${field.BLOCK}-${colorMode}-${selectedDate}-${dataMode}`}
+                  key={`fields-tab-blocks-${field.BLOCK}-${colorMode}-${selectedDate}-${dataMode}-${indexDate}`}
                   data={studyAreaGeojson}
                   style={blockStyle}
                   onEachFeature={onEachFeature}
@@ -276,8 +309,8 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
               </span>
             </div>
             <div className="card kpi">
-              <span className="label">Soil Moisture</span>
-              <span className="value">{mockData.soilMoisture} <span className="unit">%</span></span>
+              <span className="label">NDWI</span>
+              <span className="value">{currentNdwi != null ? currentNdwi.toFixed(2) : '—'}</span>
             </div>
             <div className={`card kpi ${mockData.soilMoisture < 30 ? 'warning' : ''}`}>
               <span className="label">Dehydration Risk</span>
@@ -285,7 +318,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
             </div>
             <div className="card kpi">
               <span className="label">NDVI Index</span>
-              <span className="value">{mockData.ndvi}</span>
+              <span className="value">{currentNdvi != null ? currentNdvi.toFixed(2) : '—'}</span>
             </div>
           </div>
           
