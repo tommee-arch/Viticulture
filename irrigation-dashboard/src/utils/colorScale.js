@@ -3,6 +3,7 @@
 // Evapotranspiration: white (low) -> blue (high).
 // NDVI: brown/red (low vegetation vigor) -> green (high vigor).
 // NDWI: dry brown/tan (low water content) -> teal-blue (high water content).
+// Irrigation Volume Required: pale yellow (low) -> deep purple (high).
 
 export const NET_DEFICIT_LOW = [46, 204, 113];
 export const NET_DEFICIT_HIGH = [231, 76, 60];
@@ -12,6 +13,8 @@ export const NDVI_LOW = [165, 42, 42];
 export const NDVI_HIGH = [34, 139, 34];
 export const NDWI_LOW = [140, 100, 40];
 export const NDWI_HIGH = [0, 150, 200];
+export const IRRIGATION_LOW = [255, 247, 188];
+export const IRRIGATION_HIGH = [106, 27, 154];
 
 const NO_DATA_COLOR = '#9e9e9e';
 
@@ -42,6 +45,10 @@ export function ndviColor(value, min, max) {
 
 export function ndwiColor(value, min, max) {
   return valueToColor(value, min, max, NDWI_LOW, NDWI_HIGH);
+}
+
+export function irrigationVolumeColor(value, max) {
+  return valueToColor(value, 0, max, IRRIGATION_LOW, IRRIGATION_HIGH);
 }
 
 export function gradientCss(c1, c2) {

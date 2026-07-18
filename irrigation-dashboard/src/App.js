@@ -18,6 +18,7 @@ export default function App() {
   const [weeklyIrrigation, setWeeklyIrrigation] = useState([]);
   const [ndviStats, setNdviStats] = useState(null);
   const [ndwiSoilStats, setNdwiSoilStats] = useState(null);
+  const [vRequiredGeojson, setVRequiredGeojson] = useState(null);
   useEffect(() => {
     // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
     const csvUrl = process.env.PUBLIC_URL + '/data/vineyard_STAR.csv';
@@ -46,6 +47,11 @@ export default function App() {
     .then(response => response.json())
     .then(data => setNdwiSoilStats(data))
     .catch(error => console.error("Error loading NDWI/soil moisture stats:", error));
+
+    fetch(`${process.env.PUBLIC_URL}/data/Tokara_V_Required.json`)
+    .then(response => response.json())
+    .then(data => setVRequiredGeojson(data))
+    .catch(error => console.error("Error loading irrigation volume required data:", error));
 
 
     Papa.parse(csvUrl, {
@@ -92,6 +98,7 @@ export default function App() {
               dailyIrrigation={dailyIrrigation}
               ndviStats={ndviStats}
               ndwiSoilStats={ndwiSoilStats}
+              vRequiredGeojson={vRequiredGeojson}
             />
           )}
 
@@ -105,6 +112,7 @@ export default function App() {
               weeklyIrrigation={weeklyIrrigation}
               ndviStats={ndviStats}
               ndwiSoilStats={ndwiSoilStats}
+              vRequiredGeojson={vRequiredGeojson}
             />
           )}
           

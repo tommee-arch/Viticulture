@@ -3,8 +3,10 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import WeatherWidget from './components/WeatherWidget';
-import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH } from './utils/colorScale';
+import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from './utils/colorScale';
 import { findClosestDate } from './utils/dateLookup';
+import { sumVRequiredByBlock } from './utils/vRequired';
+import { formatSeason, ndviToHealth } from './utils/fieldMetrics';
 
 // Mock data generator for sensor metrics not in the CSV
 const generateMockData = (blockName) => {
@@ -15,15 +17,12 @@ const generateMockData = (blockName) => {
   const absHash = Math.abs(hash);
 
   return {
-    et: (3.0 + (absHash % 30) / 10).toFixed(1),
     soilMoisture: 25 + (absHash % 25),
-    irrigationNet: 10 + (absHash % 15),
-    health: (absHash % 100) > 80 ? 'Good' : 'Excellent',
     waterUse: 110000 + (absHash % 30000)
   };
 };
 
-export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats }) {
+export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson }) {
   const [dataMode, setDataMode] = useState('weekly');
   const [selectedDate, setSelectedDate] = useState(null);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -76,6 +75,10 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const ndwiMinAll = ndwiValues.length ? Math.min(...ndwiValues) : 0;
   const ndwiMaxAll = ndwiValues.length ? Math.max(...ndwiValues) : 1;
 
+  // Total required irrigation volume per block (static - no date dimension in this dataset).
+  const vRequiredByBlock = useMemo(() => sumVRequiredByBlock(vRequiredGeojson), [vRequiredGeojson]);
+  const vRequiredMaxAll = useMemo(() => Math.max(0, ...Object.values(vRequiredByBlock)), [vRequiredByBlock]);
+
   // Whenever the block or the weekly/daily mode changes, snap to the most recent
   // available date unless the current selection is still valid for the new series.
   useEffect(() => {
@@ -89,6 +92,9 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const currentRecord = activeSeries[selectedIndex] || null;
   const currentNdvi = ndviByBlockAtDate[field.BLOCK]?.mean ?? null;
   const currentNdwi = ndwiByBlockAtDate[field.BLOCK]?.ndwi?.mean ?? null;
+  const currentVRequired = vRequiredByBlock[field.BLOCK] ?? null;
+  const currentSeason = formatSeason(currentRecord?.Season) || field.season || null;
+  const plantHealth = ndviToHealth(currentNdvi);
 
   const handleDatePick = (dateStr) => {
     if (!dateStr || availableDates.length === 0) return;
@@ -96,11 +102,11 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   };
 
   // Highlight the selected block in light yellow; other blocks just get a faint outline.
-  // In ET/Net Deficit/NDVI/NDWI mode, fill shows the data instead and selection is a border only.
+  // In ET/Net Deficit/NDVI/NDWI/Irrigation mode, fill shows the data instead and selection is a border only.
   const blockStyle = (feature) => {
     const isSelected = feature.properties.BLOCK === field.BLOCK;
 
-    if (colorMode === 'et' || colorMode === 'deficit' || colorMode === 'ndvi' || colorMode === 'ndwi') {
+    if (colorMode === 'et' || colorMode === 'deficit' || colorMode === 'ndvi' || colorMode === 'ndwi' || colorMode === 'irrigation') {
       let fillColor;
       if (colorMode === 'et' || colorMode === 'deficit') {
         const record = recordsForSelectedDate[feature.properties.BLOCK];
@@ -109,8 +115,10 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
           : netDeficitColor(record?.Net_Deficit_mm, deficitMaxAll);
       } else if (colorMode === 'ndvi') {
         fillColor = ndviColor(ndviByBlockAtDate[feature.properties.BLOCK]?.mean, ndviMinAll, ndviMaxAll);
-      } else {
+      } else if (colorMode === 'ndwi') {
         fillColor = ndwiColor(ndwiByBlockAtDate[feature.properties.BLOCK]?.ndwi?.mean, ndwiMinAll, ndwiMaxAll);
+      } else {
+        fillColor = irrigationVolumeColor(vRequiredByBlock[feature.properties.BLOCK], vRequiredMaxAll);
       }
       return {
         color: isSelected ? '#fbc02d' : 'white',
@@ -201,13 +209,13 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                 <tr><td>Cultivar</td><td>{field.CULTIVAR}</td></tr>
                 <tr><td>Area</td><td>{Number(field.Area).toFixed(3)} ha</td></tr>
                 {/* New data from vineyard_STAR.csv */}
-                <tr><td>Season</td><td>{field.season || 'Current'}</td></tr>
+                <tr><td>Season</td><td>{currentSeason || 'Current'}</td></tr>
                 <tr><td>Budbreak</td><td>{field.Budbreak || 'Pending'}</td></tr>
                 <tr><td>Flowering</td><td>{field.Flowering || 'Pending'}</td></tr>
                 <tr>
                   <td>Plant Health</td>
-                  <td className={mockData.health === 'Excellent' ? 'status-good' : 'status-warning'}>
-                    {mockData.health}
+                  <td className={['Excellent', 'Good'].includes(plantHealth) ? 'status-good' : 'status-warning'}>
+                    {plantHealth}
                   </td>
                 </tr>
               </tbody>
@@ -220,7 +228,8 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                 { key: 'et', label: 'ET' },
                 { key: 'deficit', label: 'Deficit' },
                 { key: 'ndvi', label: 'NDVI' },
-                { key: 'ndwi', label: 'NDWI' }
+                { key: 'ndwi', label: 'NDWI' },
+                { key: 'irrigation', label: 'Irr. Vol.' }
               ].map(({ key, label }) => (
                 <button
                   key={key}
@@ -267,6 +276,16 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                     </div>
                   </>
                 )}
+                {colorMode === 'irrigation' && (
+                  <>
+                    <div style={{ color: '#666', marginBottom: '3px' }}>Irrigation Volume Required (m³)</div>
+                    <div style={{ height: '8px', borderRadius: '3px', background: gradientCss(IRRIGATION_LOW, IRRIGATION_HIGH) }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', marginTop: '2px' }}>
+                      <span>0</span>
+                      <span>{Math.round(vRequiredMaxAll).toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -277,7 +296,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
               {/* Vineyard blocks - selected block highlighted in light yellow, others clickable to select */}
               {studyAreaGeojson && (
                 <GeoJSON
-                  key={`fields-tab-blocks-${field.BLOCK}-${colorMode}-${selectedDate}-${dataMode}-${indexDate}`}
+                  key={`fields-tab-blocks-${field.BLOCK}-${colorMode}-${selectedDate}-${dataMode}-${indexDate}-${vRequiredMaxAll}`}
                   data={studyAreaGeojson}
                   style={blockStyle}
                   onEachFeature={onEachFeature}
@@ -294,12 +313,12 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
           <div className="kpi-grid" style={{ gridTemplateColumns: mapExpanded ? '1fr' : 'repeat(3, 1fr)', transition: 'grid-template-columns 0.3s ease' }}>
             <div className="card kpi">
               <span className="label">Irrigation Net</span>
-              <span className="value">{mockData.irrigationNet} <span className="unit">mm</span></span>
+              <span className="value">{currentVRequired != null ? Math.round(currentVRequired).toLocaleString() : '—'} <span className="unit">m³</span></span>
             </div>
             <div className="card kpi">
               <span className="label">Evapotranspiration</span>
               <span className="value">
-                {currentRecord ? currentRecord.ETa_mm : mockData.et} <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>
+                {currentRecord ? currentRecord.ETa_mm : '—'} <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>
               </span>
             </div>
             <div className="card kpi">
