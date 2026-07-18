@@ -32,9 +32,13 @@ in `irrigation-dashboard/.env` (see that project's `.env.example`).
 
 ## Deploy (Render)
 
-1. Push this repo to GitHub.
-2. In Render: New -> Blueprint, point it at the repo (`render.yaml` in this
-   folder configures the service), or New -> Web Service with:
+1. This repo is on GitHub at `tommee-arch/Viticulture`. Use the **`deploy`**
+   branch, not `main` - `main` on GitHub is an old, unrelated flat-layout
+   copy of the project with no common history with this one; `deploy` has
+   everything (frontend under `irrigation-dashboard/`, backend here).
+2. In Render: New -> Blueprint, point it at the repo/branch (`render.yaml` in
+   this folder configures the service), or New -> Web Service with:
+   - Branch: `deploy`
    - Root directory: `backend`
    - Build command: `pip install -r requirements.txt`
    - Start command: `gunicorn app:app`
