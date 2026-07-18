@@ -21,7 +21,7 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
           alt="Irriguide Logo" 
           style={{ width: '40px', height: '40px', objectFit: 'contain' }} 
         />
-        <h1 style={{ margin: 0 }}>IRRIGUIDE</h1>
+        <h1 style={{ margin: 0 }}>Water Chommie</h1>
       </div>
 
       <nav className="nav-menu">

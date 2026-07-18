@@ -15,7 +15,10 @@ load_dotenv()
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    # "gemini-2.5-flash" (the originally specified model) has been deprecated
+    # for new API keys - the "-latest" alias tracks whichever flash model
+    # Google currently recommends, so this doesn't need updating again later.
+    model = genai.GenerativeModel("gemini-flash-latest")
 else:
     model = None
 
