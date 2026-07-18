@@ -73,6 +73,20 @@
   background: #eafaf1;
 }
 
+/* Condensed to 4 visible rows - scroll for the rest. The header stays
+   pinned in place while the body scrolls underneath it. */
+.priority-table-scroll {
+  max-height: 255px;
+  overflow-y: auto;
+}
+
+.priority-table thead th {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 1;
+}
+
 /* Progress Bar in Table */
 .bar-cell {
   display: flex;
@@ -112,10 +126,12 @@
 .priority-badge.medium { background: #d5f5e3; color: #27ae60; }
 .priority-badge.low { background: #ebedef; color: #7f8c8d; }
 
-/* Dashboard Grid */
-.dashboard-grid {
+/* Bottom row: Map | Graph | AI Assistant, always a single line.
+   Named distinctly from NowScreen's ".dashboard-grid" (App.css) to avoid
+   the two colliding and one silently overriding the other. */
+.planner-dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1.1fr 0.8fr 1.3fr;
   gap: 20px;
   height: 380px;
 }
@@ -157,20 +173,48 @@
   font-weight: bold;
 }
 
-/* Mock Graph Widget */
-.mock-graph-container {
+/* Soil Moisture Graph - horizontal bars, one per day */
+.h-bar-graph {
   flex-grow: 1;
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  overflow-y: auto;
 }
 
-.mock-bar {
-  flex: 1;
-  background: #009E60;
-  border-radius: 4px 4px 0 0;
+.h-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75em;
+}
+
+.h-bar-label {
+  width: 38px;
+  flex-shrink: 0;
+  color: #666;
+}
+
+.h-bar-track {
+  flex-grow: 1;
+  height: 10px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.h-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.h-bar-value {
+  width: 32px;
+  flex-shrink: 0;
+  text-align: right;
+  color: #333;
 }
 
 .graph-caption {
