@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import WeatherWidget from './components/WeatherWidget';
+import ForecastPanel from './components/ForecastPanel';
 import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from './utils/colorScale';
 import { findClosestDate } from './utils/dateLookup';
 import { sumVRequiredByBlock } from './utils/vRequired';
@@ -26,7 +27,7 @@ const generateMockData = (blockName) => {
   };
 };
 
-export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson }) {
+export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson, mlReadyData, mlReadyLoading, ensureMlReadyDataset }) {
   const [dataMode, setDataMode] = useState('weekly');
   const [selectedDate, setSelectedDate] = useState(null);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -84,6 +85,26 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   // Total required irrigation volume per block (static - no date dimension in this dataset).
   const vRequiredByBlock = useMemo(() => sumVRequiredByBlock(vRequiredGeojson), [vRequiredGeojson]);
   const vRequiredMaxAll = useMemo(() => Math.max(0, ...Object.values(vRequiredByBlock)), [vRequiredByBlock]);
+
+  // Each block's most recently recorded Kc (crop coefficient) - the Forecast tab
+  // holds this constant across the live 7-day Open-Meteo forecast.
+  const kcByBlock = useMemo(() => {
+    const latestByBlock = {};
+    (mlReadyData || []).forEach(r => {
+      const cur = latestByBlock[r.Block_ID];
+      if (!cur || r.Date > cur.Date) latestByBlock[r.Block_ID] = r;
+    });
+    const map = {};
+    Object.entries(latestByBlock).forEach(([block, r]) => {
+      map[block] = { kc: r.Kc, date: r.Date };
+    });
+    return map;
+  }, [mlReadyData]);
+
+  // ml_ready_dataset.json is large, so it's only fetched once the user actually opens Forecast.
+  useEffect(() => {
+    if (dataMode === 'forecast') ensureMlReadyDataset();
+  }, [dataMode, ensureMlReadyDataset]);
 
   // Whenever the block or the weekly/daily mode changes, snap to the most recent
   // available date unless the current selection is still valid for the new series.
@@ -321,42 +342,56 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
           </div>
         </div>
 
-        {/* Right Column: KPIs & Weather */}
+        {/* Right Column: KPIs & Weather (or the 7-day Forecast) */}
         <div className="col-right" style={{ overflow: 'hidden' }}>
-          <div className="kpi-grid" style={{ gridTemplateColumns: mapExpanded ? '1fr' : 'repeat(3, 1fr)', transition: 'grid-template-columns 0.3s ease' }}>
-            <div className="card kpi">
-              <span className="label">Irrigation Net</span>
-              <span className="value">{currentVRequired != null ? Math.round(currentVRequired).toLocaleString() : '—'} <span className="unit">m³</span></span>
+          {dataMode === 'forecast' ? (
+            <div className="card">
+              <h3 style={{ marginTop: 0 }}>7-Day Irrigation Forecast</h3>
+              <ForecastPanel
+                lat={lat}
+                lng={lng}
+                kcInfo={kcByBlock[field.BLOCK] || null}
+                kcLoading={mlReadyLoading}
+              />
             </div>
-            <div className="card kpi">
-              <span className="label">Evapotranspiration</span>
-              <span className="value">
-                {currentRecord ? currentRecord.ETa_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
-              </span>
-            </div>
-            <div className="card kpi">
-              <span className="label">Net Deficit</span>
-              <span className="value">
-                {currentRecord ? currentRecord.Net_Deficit_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
-              </span>
-            </div>
-            <div className="card kpi">
-              <span className="label">NDWI</span>
-              <span className="value">{currentNdwi != null ? currentNdwi.toFixed(2) : '—'}</span>
-            </div>
-            <div className={`card kpi ${mockData.soilMoisture < 30 ? 'warning' : ''}`}>
-              <span className="label">Dehydration Risk</span>
-              <span className="value">{mockData.soilMoisture < 30 ? 'Moderate' : 'Low'}</span>
-            </div>
-            <div className="card kpi">
-              <span className="label">NDVI Index</span>
-              <span className="value">{currentNdvi != null ? currentNdvi.toFixed(2) : '—'}</span>
-            </div>
-          </div>
-          
-          <div className="card weather-card">
-            <WeatherWidget lat={lat} lng={lng} date={selectedDate} />
-          </div>
+          ) : (
+            <>
+              <div className="kpi-grid" style={{ gridTemplateColumns: mapExpanded ? '1fr' : 'repeat(3, 1fr)', transition: 'grid-template-columns 0.3s ease' }}>
+                <div className="card kpi">
+                  <span className="label">Irrigation Net</span>
+                  <span className="value">{currentVRequired != null ? Math.round(currentVRequired).toLocaleString() : '—'} <span className="unit">m³</span></span>
+                </div>
+                <div className="card kpi">
+                  <span className="label">Evapotranspiration</span>
+                  <span className="value">
+                    {currentRecord ? currentRecord.ETa_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
+                  </span>
+                </div>
+                <div className="card kpi">
+                  <span className="label">Net Deficit</span>
+                  <span className="value">
+                    {currentRecord ? currentRecord.Net_Deficit_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
+                  </span>
+                </div>
+                <div className="card kpi">
+                  <span className="label">NDWI</span>
+                  <span className="value">{currentNdwi != null ? currentNdwi.toFixed(2) : '—'}</span>
+                </div>
+                <div className={`card kpi ${mockData.soilMoisture < 30 ? 'warning' : ''}`}>
+                  <span className="label">Dehydration Risk</span>
+                  <span className="value">{mockData.soilMoisture < 30 ? 'Moderate' : 'Low'}</span>
+                </div>
+                <div className="card kpi">
+                  <span className="label">NDVI Index</span>
+                  <span className="value">{currentNdvi != null ? currentNdvi.toFixed(2) : '—'}</span>
+                </div>
+              </div>
+
+              <div className="card weather-card">
+                <WeatherWidget lat={lat} lng={lng} date={selectedDate} />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
