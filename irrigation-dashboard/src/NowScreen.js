@@ -8,6 +8,10 @@ import { findClosestDate } from './utils/dateLookup';
 import { sumVRequiredByBlock } from './utils/vRequired';
 import { formatSeason, ndviToHealth } from './utils/fieldMetrics';
 
+// Stable reference for the 'forecast' mode, which has no backing dataset yet -
+// a fresh [] literal on every render would break the useMemo hooks below.
+const EMPTY_ARRAY = [];
+
 // Mock data generator for sensor metrics not in the CSV
 const generateMockData = (blockName) => {
   let hash = 0;
@@ -43,11 +47,13 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
       .sort((a, b) => a.Date.localeCompare(b.Date));
   }, [weeklyIrrigation, field]);
 
-  const activeSeries = dataMode === 'daily' ? dailyForBlock : weeklyForBlock;
+  // 'forecast' has no backing dataset yet - falls through to an empty series,
+  // which naturally hides the date slider/picker and shows '—' in the KPIs below.
+  const activeSeries = dataMode === 'daily' ? dailyForBlock : dataMode === 'weekly' ? weeklyForBlock : EMPTY_ARRAY;
   const availableDates = useMemo(() => activeSeries.map(d => d.Date), [activeSeries]);
 
   // Every block's reading on the selected date, for the ET/Net Deficit map overlays.
-  const activeFullSeries = dataMode === 'daily' ? dailyIrrigation : weeklyIrrigation;
+  const activeFullSeries = dataMode === 'daily' ? dailyIrrigation : dataMode === 'weekly' ? weeklyIrrigation : EMPTY_ARRAY;
   const recordsForSelectedDate = useMemo(() => {
     const map = {};
     if (!selectedDate) return map;
@@ -172,6 +178,13 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                     style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'daily' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'daily' ? 'white' : '#333' }}
                   >
                     Daily
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDataMode('forecast')}
+                    style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'forecast' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'forecast' ? 'white' : '#333' }}
+                  >
+                    Forecast
                   </button>
                 </div>
 
@@ -318,13 +331,13 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
             <div className="card kpi">
               <span className="label">Evapotranspiration</span>
               <span className="value">
-                {currentRecord ? currentRecord.ETa_mm : '—'} <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>
+                {currentRecord ? currentRecord.ETa_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
               </span>
             </div>
             <div className="card kpi">
               <span className="label">Net Deficit</span>
               <span className="value">
-                {currentRecord ? currentRecord.Net_Deficit_mm : '—'} <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>
+                {currentRecord ? currentRecord.Net_Deficit_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
               </span>
             </div>
             <div className="card kpi">
