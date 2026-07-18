@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Papa from 'papaparse';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -19,6 +19,21 @@ export default function App() {
   const [ndviStats, setNdviStats] = useState(null);
   const [ndwiSoilStats, setNdwiSoilStats] = useState(null);
   const [vRequiredGeojson, setVRequiredGeojson] = useState(null);
+  // ml_ready_dataset.json is ~20MB (it's the source for the Kc/crop-coefficient
+  // values used by the Forecast feature) - too big to fetch eagerly on every
+  // load, so it's only fetched the first time something actually needs it.
+  const [mlReadyData, setMlReadyData] = useState(null);
+  const [mlReadyLoading, setMlReadyLoading] = useState(false);
+  const ensureMlReadyDataset = useCallback(() => {
+    if (mlReadyData || mlReadyLoading) return;
+    setMlReadyLoading(true);
+    fetch(`${process.env.PUBLIC_URL}/data/ml_ready_dataset.json`)
+      .then(response => response.json())
+      .then(data => setMlReadyData(data))
+      .catch(error => console.error("Error loading ML-ready dataset:", error))
+      .finally(() => setMlReadyLoading(false));
+  }, [mlReadyData, mlReadyLoading]);
+
   useEffect(() => {
     // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
     const csvUrl = process.env.PUBLIC_URL + '/data/vineyard_STAR.csv';
@@ -113,9 +128,12 @@ export default function App() {
               ndviStats={ndviStats}
               ndwiSoilStats={ndwiSoilStats}
               vRequiredGeojson={vRequiredGeojson}
+              mlReadyData={mlReadyData}
+              mlReadyLoading={mlReadyLoading}
+              ensureMlReadyDataset={ensureMlReadyDataset}
             />
           )}
-          
+
           {activeTab === 'Fields' && timeframe === 'Predictive' && (
             <PredictiveScreen field={selectedField} />
           )}
