@@ -140,7 +140,15 @@ export default function App() {
           )}
 
           {activeTab === 'Irrigation Manager' && (
-            <IrrigationPlanner />
+            <IrrigationPlanner
+              fields={fieldsData}
+              studyAreaGeojson={studyAreaGeojson}
+              selectedField={selectedField}
+              setSelectedField={setSelectedField}
+              weeklyIrrigation={weeklyIrrigation}
+              ndwiSoilStats={ndwiSoilStats}
+              vRequiredGeojson={vRequiredGeojson}
+            />
           )}
 
           {activeTab === 'Fertigation Manager' && (

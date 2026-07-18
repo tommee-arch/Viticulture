@@ -57,6 +57,14 @@
   font-weight: 600;
 }
 
+.priority-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.priority-table tr.selected-row {
+  background: #eafaf1;
+}
+
 /* Progress Bar in Table */
 .bar-cell {
   display: flex;
@@ -101,7 +109,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
-  height: 300px;
+  height: 380px;
 }
 
 .widget-card {
@@ -120,7 +128,15 @@
   color: #333;
 }
 
-/* Map Widget Placeholder */
+/* Map Widget */
+.map-inner {
+  flex-grow: 1;
+  min-height: 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Map/Graph Placeholder (shown before a block is selected or data is missing) */
 .map-placeholder {
   flex-grow: 1;
   background: #d5f5e3;
