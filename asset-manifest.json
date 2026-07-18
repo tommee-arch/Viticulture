@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/Viticulture/static/css/main.4f34fe5a.css",
-    "main.js": "/Viticulture/static/js/main.422b7389.js",
+    "main.css": "/Viticulture/static/css/main.f61831de.css",
+    "main.js": "/Viticulture/static/js/main.737cde01.js",
     "static/js/453.a7374831.chunk.js": "/Viticulture/static/js/453.a7374831.chunk.js",
     "index.html": "/Viticulture/index.html",
-    "main.4f34fe5a.css.map": "/Viticulture/static/css/main.4f34fe5a.css.map",
-    "main.422b7389.js.map": "/Viticulture/static/js/main.422b7389.js.map",
+    "main.f61831de.css.map": "/Viticulture/static/css/main.f61831de.css.map",
+    "main.737cde01.js.map": "/Viticulture/static/js/main.737cde01.js.map",
     "453.a7374831.chunk.js.map": "/Viticulture/static/js/453.a7374831.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.4f34fe5a.css",
-    "static/js/main.422b7389.js"
+    "static/css/main.f61831de.css",
+    "static/js/main.737cde01.js"
   ]
 }
