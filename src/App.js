@@ -16,6 +16,8 @@ export default function App() {
   const [studyAreaGeojson, setStudyAreaGeojson] = useState(null);
   const [dailyIrrigation, setDailyIrrigation] = useState([]);
   const [weeklyIrrigation, setWeeklyIrrigation] = useState([]);
+  const [ndviStats, setNdviStats] = useState(null);
+  const [ndwiSoilStats, setNdwiSoilStats] = useState(null);
   useEffect(() => {
     // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
     const csvUrl = process.env.PUBLIC_URL + '/data/vineyard_STAR.csv';
@@ -34,6 +36,16 @@ export default function App() {
     .then(response => response.json())
     .then(data => setWeeklyIrrigation(data))
     .catch(error => console.error("Error loading weekly irrigation data:", error));
+
+    fetch(`${process.env.PUBLIC_URL}/data/ndvi_stats.json`)
+    .then(response => response.json())
+    .then(data => setNdviStats(data))
+    .catch(error => console.error("Error loading NDVI stats:", error));
+
+    fetch(`${process.env.PUBLIC_URL}/data/tokara_indices_NDWI_SOIL.json`)
+    .then(response => response.json())
+    .then(data => setNdwiSoilStats(data))
+    .catch(error => console.error("Error loading NDWI/soil moisture stats:", error));
 
 
     Papa.parse(csvUrl, {
@@ -78,6 +90,8 @@ export default function App() {
               selectedField={selectedField}
               setSelectedField={setSelectedField}
               dailyIrrigation={dailyIrrigation}
+              ndviStats={ndviStats}
+              ndwiSoilStats={ndwiSoilStats}
             />
           )}
 
@@ -89,6 +103,8 @@ export default function App() {
               studyAreaGeojson={studyAreaGeojson}
               dailyIrrigation={dailyIrrigation}
               weeklyIrrigation={weeklyIrrigation}
+              ndviStats={ndviStats}
+              ndwiSoilStats={ndwiSoilStats}
             />
           )}
           

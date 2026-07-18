@@ -3,12 +3,12 @@ import { MapContainer, TileLayer, LayersControl, ScaleControl, GeoJSON } from 'r
 import MapFlyTo from './MapFlyTo';
 import LabelVisibilityToggler from './LabelVisibilityToggler';
 import CursorPosition from './CursorPosition';
-import { netDeficitColor, evapotranspirationColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH } from '../utils/colorScale';
+import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH } from '../utils/colorScale';
 
-export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyIrrigation = [] }) {
-  // State for the fill opacity slider (0 to 1) - also drives the ET/Net Deficit overlays
+export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyIrrigation = [], ndviStats, ndwiSoilStats }) {
+  // State for the fill opacity slider (0 to 1) - also drives the ET/Net Deficit/NDVI/NDWI overlays
   const [fillOpacity, setFillOpacity] = useState(0.5);
-  // 'selection' (green/orange), 'et' (Evapotranspiration), or 'deficit' (Net Deficit)
+  // 'selection' (green/orange), 'et', 'deficit', 'ndvi', or 'ndwi'
   const [colorMode, setColorMode] = useState('selection');
 
   // Most recent date present in the daily dataset, and each block's reading on that date.
@@ -29,15 +29,41 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
   const etMax = useMemo(() => Math.max(0, ...Object.values(latestByBlock).map(r => r.ETa_mm ?? 0)), [latestByBlock]);
   const deficitMax = useMemo(() => Math.max(0, ...Object.values(latestByBlock).map(r => r.Net_Deficit_mm ?? 0)), [latestByBlock]);
 
+  // Most recent satellite-pass date in the NDVI / NDWI datasets, and each block's reading on it.
+  const latestNdviDate = useMemo(() => {
+    if (!ndviStats?.dates?.length) return null;
+    return ndviStats.dates.reduce((max, d) => (d > max ? d : max), ndviStats.dates[0]);
+  }, [ndviStats]);
+  const ndviByBlock = useMemo(() => ndviStats?.data?.[latestNdviDate] || {}, [ndviStats, latestNdviDate]);
+  const ndviValues = useMemo(() => Object.values(ndviByBlock).map(b => b.mean).filter(Number.isFinite), [ndviByBlock]);
+  const ndviMin = ndviValues.length ? Math.min(...ndviValues) : 0;
+  const ndviMax = ndviValues.length ? Math.max(...ndviValues) : 1;
+
+  const latestNdwiDate = useMemo(() => {
+    if (!ndwiSoilStats?.dates?.length) return null;
+    return ndwiSoilStats.dates.reduce((max, d) => (d > max ? d : max), ndwiSoilStats.dates[0]);
+  }, [ndwiSoilStats]);
+  const ndwiByBlock = useMemo(() => ndwiSoilStats?.data?.[latestNdwiDate] || {}, [ndwiSoilStats, latestNdwiDate]);
+  const ndwiValues = useMemo(() => Object.values(ndwiByBlock).map(b => b.ndwi?.mean).filter(Number.isFinite), [ndwiByBlock]);
+  const ndwiMin = ndwiValues.length ? Math.min(...ndwiValues) : 0;
+  const ndwiMax = ndwiValues.length ? Math.max(...ndwiValues) : 1;
+
   // Dynamic style application for the GeoJSON polygons
   const styleGeoJSON = (feature) => {
     const isSelected = selectedField && selectedField.BLOCK === feature.properties.BLOCK;
 
-    if (colorMode === 'et' || colorMode === 'deficit') {
-      const record = latestByBlock[feature.properties.BLOCK];
-      const fillColor = colorMode === 'et'
-        ? evapotranspirationColor(record?.ETa_mm, etMax)
-        : netDeficitColor(record?.Net_Deficit_mm, deficitMax);
+    if (colorMode === 'et' || colorMode === 'deficit' || colorMode === 'ndvi' || colorMode === 'ndwi') {
+      let fillColor;
+      if (colorMode === 'et' || colorMode === 'deficit') {
+        const record = latestByBlock[feature.properties.BLOCK];
+        fillColor = colorMode === 'et'
+          ? evapotranspirationColor(record?.ETa_mm, etMax)
+          : netDeficitColor(record?.Net_Deficit_mm, deficitMax);
+      } else if (colorMode === 'ndvi') {
+        fillColor = ndviColor(ndviByBlock[feature.properties.BLOCK]?.mean, ndviMin, ndviMax);
+      } else {
+        fillColor = ndwiColor(ndwiByBlock[feature.properties.BLOCK]?.ndwi?.mean, ndwiMin, ndwiMax);
+      }
       return {
         fillColor,
         weight: isSelected ? 4 : 1,   // selection now shown via border, since fill carries data
@@ -83,17 +109,19 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
       
       {/* Opacity Slider + Symbology UI Overlay */}
       <div className="opacity-slider-control" style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, background: 'white', padding: '10px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', minWidth: '190px' }}>
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '10px' }}>
           {[
             { key: 'selection', label: 'Selection' },
             { key: 'et', label: 'ET' },
-            { key: 'deficit', label: 'Net Deficit' }
+            { key: 'deficit', label: 'Net Deficit' },
+            { key: 'ndvi', label: 'NDVI' },
+            { key: 'ndwi', label: 'NDWI' }
           ].map(({ key, label }) => (
             <button
               key={key}
               type="button"
               onClick={() => setColorMode(key)}
-              style={{ flex: 1, padding: '4px 6px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: colorMode === key ? '#2ca25f' : '#f0f0f0', color: colorMode === key ? 'white' : '#333' }}
+              style={{ flex: '1 1 40%', padding: '4px 6px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: colorMode === key ? '#2ca25f' : '#f0f0f0', color: colorMode === key ? 'white' : '#333' }}
             >
               {label}
             </button>
@@ -171,6 +199,28 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
             </div>
           </>
         )}
+
+        {colorMode === 'ndvi' && (
+          <>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>NDVI{latestNdviDate ? ` - ${latestNdviDate}` : ''}</div>
+            <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(NDVI_LOW, NDVI_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '2px' }}>
+              <span>{ndviMin.toFixed(2)}</span>
+              <span>{ndviMax.toFixed(2)}</span>
+            </div>
+          </>
+        )}
+
+        {colorMode === 'ndwi' && (
+          <>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>NDWI{latestNdwiDate ? ` - ${latestNdwiDate}` : ''}</div>
+            <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(NDWI_LOW, NDWI_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '2px' }}>
+              <span>{ndwiMin.toFixed(2)}</span>
+              <span>{ndwiMax.toFixed(2)}</span>
+            </div>
+          </>
+        )}
       </div>
 
       <MapContainer center={[-33.92, 18.86]} zoom={14} style={{ height: '100%', width: '100%' }}>
@@ -205,7 +255,7 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
             <GeoJSON
               // Remounts the layer whenever the selection or opacity changes so Leaflet
               // actually repaints - a stale style prop alone doesn't force a redraw.
-              key={`blocks-${selectedField?.BLOCK}-${fillOpacity}-${colorMode}-${latestDate}`}
+              key={`blocks-${selectedField?.BLOCK}-${fillOpacity}-${colorMode}-${latestDate}-${latestNdviDate}-${latestNdwiDate}`}
               data={studyAreaGeojson}
               style={styleGeoJSON}
               onEachFeature={onEachFeature}
