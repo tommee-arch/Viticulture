@@ -39,7 +39,7 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
           
           {isDecisionSupportOpen && (
             <div className="accordion-content">
-              <button className={activeTab === 'Irrigation Manager' ? 'active' : ''} onClick={() => setActiveTab('Irrigation Manager')}>Irrigation Manager</button>
+              <button className={activeTab === 'Irrigation Planner' ? 'active' : ''} onClick={() => setActiveTab('Irrigation Planner')}>Irrigation Planner</button>
               <button className={activeTab === 'Fertigation Manager' ? 'active' : ''} onClick={() => setActiveTab('Fertigation Manager')}>Fertigation Manager</button>
             </div>
           )}
@@ -65,7 +65,7 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
               className={selectedField?.BLOCK === field.BLOCK ? 'selected' : ''}
               onClick={() => {
                 setSelectedField(field);
-                if (activeTab !== 'Fields' && activeTab !== 'Irrigation Manager') {
+                if (activeTab !== 'Fields' && activeTab !== 'Irrigation Planner') {
                   setActiveTab('Fields');
                 }
               }}

@@ -27,10 +27,18 @@
   color: #009E60;
 }
 
+.header-filters {
+  flex-grow: 1;
+  max-width: 340px;
+  margin-left: 24px;
+}
+
 .sort-dropdown {
-  padding: 8px;
+  width: 100%;
+  padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
+  background: white;
 }
 
 /* Table Card */

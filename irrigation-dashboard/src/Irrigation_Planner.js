@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import { sumVRequiredByBlock } from './utils/vRequired';
-import { formatSeason } from './utils/fieldMetrics';
 import './IrrigationPlanner.css';
 
 const PRIORITY_LEVELS = [
@@ -15,6 +14,27 @@ const PRIORITY_LEVELS = [
 
 function priorityFor(ratio) {
   return PRIORITY_LEVELS.find(p => ratio >= p.min) || PRIORITY_LEVELS[PRIORITY_LEVELS.length - 1];
+}
+
+// vineyard_STAR.csv stores Budbreak/Flowering as US-format dates (M/D/YYYY).
+function parseUsDate(str) {
+  if (!str) return null;
+  const [m, d, y] = String(str).split('/').map(Number);
+  if (!m || !d || !y) return null;
+  return new Date(y, m - 1, d);
+}
+
+// Growth stage as of a block's latest irrigation reading, from the real
+// Budbreak/Flowering dates in the CSV - there's no Veraison/Harvest date
+// on record, so "Flowering" is as far as this can resolve.
+function deriveStage(recordDateIso, budbreakStr, floweringStr) {
+  if (!recordDateIso) return 'Unknown';
+  const recordDate = new Date(recordDateIso);
+  const flowering = parseUsDate(floweringStr);
+  const budbreak = parseUsDate(budbreakStr);
+  if (flowering && recordDate >= flowering) return 'Flowering';
+  if (budbreak && recordDate >= budbreak) return 'Budbreak';
+  return 'Pre-Budbreak';
 }
 
 const IrrigationPlanner = ({
@@ -68,7 +88,7 @@ const IrrigationPlanner = ({
       return {
         block: f.BLOCK,
         cultivar: f.CULTIVAR,
-        season: formatSeason(record?.Season) || 'Current',
+        stage: deriveStage(record?.Date, f.Budbreak, f.Flowering),
         deficit,
         ratio,
         volume: Math.round(vRequiredByBlock[f.BLOCK] ?? 0),
@@ -154,7 +174,7 @@ const IrrigationPlanner = ({
         </div>
         <div className="header-filters">
           <select className="sort-dropdown" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="deficit">Sort: Water Deficit</option>
+            <option value="deficit">Sort: PWDI</option>
             <option value="volume">Sort: Volume</option>
             <option value="priority">Sort: Priority</option>
           </select>
@@ -168,7 +188,7 @@ const IrrigationPlanner = ({
             <tr>
               <th>Block</th>
               <th>Cultivar</th>
-              <th>Season</th>
+              <th>Stage</th>
               <th>Water Deficit (mm)</th>
               <th>Volume</th>
               <th>Priority</th>
@@ -187,7 +207,7 @@ const IrrigationPlanner = ({
               >
                 <td><strong>{row.block}</strong></td>
                 <td>{row.cultivar}</td>
-                <td>{row.season}</td>
+                <td>{row.stage}</td>
                 <td className="bar-cell">
                   <span className="deficit-value">{row.deficit.toFixed(1)}</span>
                   <div className="progress-track">

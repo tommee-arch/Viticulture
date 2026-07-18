@@ -139,7 +139,7 @@ export default function App() {
             <PredictiveScreen field={selectedField} />
           )}
 
-          {activeTab === 'Irrigation Manager' && (
+          {activeTab === 'Irrigation Planner' && (
             <IrrigationPlanner
               fields={fieldsData}
               studyAreaGeojson={studyAreaGeojson}
