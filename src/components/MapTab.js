@@ -3,12 +3,13 @@ import { MapContainer, TileLayer, LayersControl, ScaleControl, GeoJSON } from 'r
 import MapFlyTo from './MapFlyTo';
 import LabelVisibilityToggler from './LabelVisibilityToggler';
 import CursorPosition from './CursorPosition';
-import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH } from '../utils/colorScale';
+import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from '../utils/colorScale';
+import { sumVRequiredByBlock } from '../utils/vRequired';
 
-export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyIrrigation = [], ndviStats, ndwiSoilStats }) {
-  // State for the fill opacity slider (0 to 1) - also drives the ET/Net Deficit/NDVI/NDWI overlays
+export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson }) {
+  // State for the fill opacity slider (0 to 1) - also drives the ET/Net Deficit/NDVI/NDWI/Irrigation overlays
   const [fillOpacity, setFillOpacity] = useState(0.5);
-  // 'selection' (green/orange), 'et', 'deficit', 'ndvi', or 'ndwi'
+  // 'selection' (green/orange), 'et', 'deficit', 'ndvi', 'ndwi', or 'irrigation'
   const [colorMode, setColorMode] = useState('selection');
 
   // Most recent date present in the daily dataset, and each block's reading on that date.
@@ -48,11 +49,15 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
   const ndwiMin = ndwiValues.length ? Math.min(...ndwiValues) : 0;
   const ndwiMax = ndwiValues.length ? Math.max(...ndwiValues) : 1;
 
+  // Total required irrigation volume per block (static - no date dimension in this dataset).
+  const vRequiredByBlock = useMemo(() => sumVRequiredByBlock(vRequiredGeojson), [vRequiredGeojson]);
+  const vRequiredMax = useMemo(() => Math.max(0, ...Object.values(vRequiredByBlock)), [vRequiredByBlock]);
+
   // Dynamic style application for the GeoJSON polygons
   const styleGeoJSON = (feature) => {
     const isSelected = selectedField && selectedField.BLOCK === feature.properties.BLOCK;
 
-    if (colorMode === 'et' || colorMode === 'deficit' || colorMode === 'ndvi' || colorMode === 'ndwi') {
+    if (colorMode === 'et' || colorMode === 'deficit' || colorMode === 'ndvi' || colorMode === 'ndwi' || colorMode === 'irrigation') {
       let fillColor;
       if (colorMode === 'et' || colorMode === 'deficit') {
         const record = latestByBlock[feature.properties.BLOCK];
@@ -61,8 +66,10 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
           : netDeficitColor(record?.Net_Deficit_mm, deficitMax);
       } else if (colorMode === 'ndvi') {
         fillColor = ndviColor(ndviByBlock[feature.properties.BLOCK]?.mean, ndviMin, ndviMax);
-      } else {
+      } else if (colorMode === 'ndwi') {
         fillColor = ndwiColor(ndwiByBlock[feature.properties.BLOCK]?.ndwi?.mean, ndwiMin, ndwiMax);
+      } else {
+        fillColor = irrigationVolumeColor(vRequiredByBlock[feature.properties.BLOCK], vRequiredMax);
       }
       return {
         fillColor,
@@ -115,7 +122,8 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
             { key: 'et', label: 'ET' },
             { key: 'deficit', label: 'Net Deficit' },
             { key: 'ndvi', label: 'NDVI' },
-            { key: 'ndwi', label: 'NDWI' }
+            { key: 'ndwi', label: 'NDWI' },
+            { key: 'irrigation', label: 'Irrigation Vol.' }
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -221,6 +229,17 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
             </div>
           </>
         )}
+
+        {colorMode === 'irrigation' && (
+          <>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Irrigation Volume Required (m³)</div>
+            <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(IRRIGATION_LOW, IRRIGATION_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '2px' }}>
+              <span>0</span>
+              <span>{Math.round(vRequiredMax).toLocaleString()}</span>
+            </div>
+          </>
+        )}
       </div>
 
       <MapContainer center={[-33.92, 18.86]} zoom={14} style={{ height: '100%', width: '100%' }}>
@@ -255,7 +274,7 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
             <GeoJSON
               // Remounts the layer whenever the selection or opacity changes so Leaflet
               // actually repaints - a stale style prop alone doesn't force a redraw.
-              key={`blocks-${selectedField?.BLOCK}-${fillOpacity}-${colorMode}-${latestDate}-${latestNdviDate}-${latestNdwiDate}`}
+              key={`blocks-${selectedField?.BLOCK}-${fillOpacity}-${colorMode}-${latestDate}-${latestNdviDate}-${latestNdwiDate}-${vRequiredMax}`}
               data={studyAreaGeojson}
               style={styleGeoJSON}
               onEachFeature={onEachFeature}
