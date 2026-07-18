@@ -5,6 +5,7 @@ import TopBar from './components/TopBar';
 import NowScreen from './NowScreen';
 import PredictiveScreen from './PredictiveScreen';
 import MapTab from './components/MapTab'; // Assuming you have a full-screen map component
+import IrrigationPlanner from './Irrigation_Planner';
 import './App.css';
 
 export default function App() {
@@ -138,7 +139,11 @@ export default function App() {
             <PredictiveScreen field={selectedField} />
           )}
 
-          {(activeTab === 'Irrigation Manager' || activeTab === 'Fertigation Manager') && (
+          {activeTab === 'Irrigation Manager' && (
+            <IrrigationPlanner />
+          )}
+
+          {activeTab === 'Fertigation Manager' && (
             <div className="module-placeholder">
               <h2>{activeTab} Workspace</h2>
               <p>Select a field and input parameters to generate application rates.</p>
