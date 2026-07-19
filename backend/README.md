@@ -15,21 +15,35 @@ frontend.
 - `GET /api/daily-statistics` - the live `Daily_Statistics.json` (per-block,
   per-day ETa/Net Deficit/Net Irrigation/NDVI/NDWI/Growth Stage/Season).
   Frontend falls back to its bundled static copy if this is unreachable.
-- `POST /api/upload-daily-data` - multipart form: `date` (YYYY-MM-DD),
-  `mode` (`calculate` to preview without saving, or `upload` to persist),
-  and up to 5 files keyed `ETa`, `ETo`, `Kc`, `NDVI` (single-band GeoTIFF
-  rasters - reduced to a per-block mean via zonal statistics against
-  `data/Tokara_Study_Area.json`) and `Sentinel imagery` (a CSV of
-  already-computed per-block NDVI/NDWI, columns like `Block_ID`/`Mean_NDVI`/
-  `Mean_NDWI`). Precipitation (needed to derive `Net_Irrigation_mm` /
-  `Net_Deficit_mm` - none of the 5 uploads carry it) comes from the same
-  Open-Meteo historical archive the frontend's weather widget uses, fetched
-  once per upload for the vineyard's centroid.
-  **Caveat**: built and tested against a synthetic raster (no real
-  ETa/NDVI/Sentinel-2 sample file was available) - the zonal-statistics
-  and CRS-reprojection logic works correctly in that test, but hasn't been
-  verified against a real product. If real uploads come back all-null,
-  check the raster's CRS/nodata value first.
+- `POST /api/upload-daily-data` - multipart form:
+  - `date` (YYYY-MM-DD) - required.
+  - `mode` - `calculate` to preview without saving, or `upload` to persist.
+  - `precip_mm`, `ks` - plain form fields (not files), single values applied
+    to every block in this upload (not per-block).
+  - Files, all optional: `ETa`, `ETo`, `Kc`, `NDVI` - single-band GeoTIFF
+    rasters of already-computed values, reduced to a per-block mean via
+    zonal statistics against `data/Tokara_Study_Area.json`. `Sentinel
+    imagery` - a raw **4-band** GeoTIFF, assumed band order `[B4, B3, B2,
+    B8]` (Red, Green, Blue, NIR); the backend computes
+    `NDWI = (B3 - B8) / (B3 + B8)` per pixel and zonal-averages that.
+
+  Per block, the backend computes and saves:
+  - `Net_Irrigation_mm = ETa_mm - Precip_mm`, `Net_Deficit_mm = max(that, 0)`
+  - `Pheno_Net_mm = (ETa_mm - Precip_mm) x Ks`
+  - `Litres = Pheno_Net_mm x Area_m2`, `Volume_m3 = Litres / 1000`
+    (`Area_m2` looked up from the block's existing rows, not recomputed
+    from geometry)
+  - `Growth_Stage`/`Season`/`Cultivar` the same way the rest of the app
+    derives them (phenology CSV + the July-cutover season convention)
+
+  **Band-order caveat**: no real Sentinel-2 file was available to confirm
+  `[B4, B3, B2, B8]` against - if `Mean_NDWI` looks implausible (outside
+  [-1, 1], or suspiciously uniform), check the actual band order first.
+  **General caveat**: the raster/zonal-statistics path is verified against
+  synthetic test rasters with known values (confirmed the NDWI formula,
+  and the full `ETa -> Net_Irrigation_mm -> Pheno_Net_mm -> Volume_m3` chain,
+  produce exactly the expected numbers) - but not against a real product.
+  If a real upload comes back all-null, check CRS/nodata first.
   **Persistence caveat**: on a host with an ephemeral filesystem (e.g.
   Render's free tier), `mode: upload` updates the in-memory copy for the
   life of that process but does NOT survive a restart/redeploy - fine for a

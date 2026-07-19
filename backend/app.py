@@ -130,10 +130,21 @@ def _zonal_stats_if_present(daily_store, field_name):
     return daily_store.zonal_mean_per_block(file.read())
 
 
+def _parse_optional_float(value):
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
 @app.route("/api/upload-daily-data", methods=["POST"])
 def upload_daily_data():
     date_str = request.form.get("date")
     mode = request.form.get("mode", "upload")
+    precip_mm = _parse_optional_float(request.form.get("precip_mm"))
+    ks = _parse_optional_float(request.form.get("ks"))
     if not date_str:
         return jsonify({"error": "date is required."}), 400
 
@@ -149,7 +160,7 @@ def upload_daily_data():
         kc_by_block = _zonal_stats_if_present(daily_store, "Kc")
         ndvi_by_block = _zonal_stats_if_present(daily_store, "NDVI")
         sentinel_file = request.files.get("Sentinel imagery")
-        sentinel_by_block = daily_store.parse_precomputed_indices_csv(sentinel_file.read()) if sentinel_file else None
+        ndwi_by_block = daily_store.ndwi_mean_per_block(sentinel_file.read()) if sentinel_file else None
 
         updates = daily_store.build_updates(
             date_str,
@@ -157,13 +168,15 @@ def upload_daily_data():
             eto_by_block=eto_by_block,
             kc_by_block=kc_by_block,
             ndvi_by_block=ndvi_by_block,
-            sentinel_by_block=sentinel_by_block,
+            ndwi_by_block=ndwi_by_block,
+            precip_mm=precip_mm,
+            ks=ks,
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception:
         app.logger.exception("Failed to process uploaded files for %s", date_str)
-        return jsonify({"error": "Could not process the uploaded files - check they're valid rasters/CSV."}), 400
+        return jsonify({"error": "Could not process the uploaded files - check they're valid rasters."}), 400
 
     if not updates:
         return jsonify({"error": "No files were provided."}), 400

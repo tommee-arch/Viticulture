@@ -1,24 +1,23 @@
-"""Ingests newly uploaded ETa/ETo/Kc/NDVI rasters plus a precomputed
-Sentinel-2 NDVI/NDWI CSV, turns them into per-block rows, and upserts them
-into Daily_Statistics.json.
+"""Ingests newly uploaded ETa/ETo/Kc/NDVI rasters, a raw Sentinel-2 band
+raster (for NDWI), plus manually-entered Precipitation and Ks, turns them
+into per-block rows, and upserts them into Daily_Statistics.json.
 
-IMPORTANT CAVEAT: this was built without any real sample raster or CSV file
-to test against (none were available) - the zonal-statistics logic follows
+IMPORTANT CAVEAT: this was built without any real sample raster to test
+against (none were available) - the zonal-statistics logic follows
 rasterstats' standard usage and reprojects the block polygons to match
 whatever CRS each uploaded raster reports, which is the normally-correct
-approach, but it has not been exercised against a real ETa/NDVI product.
-Test with a real file before relying on this in production, and check the
-CRS assumption in particular if results look wrong (all-null or all-zero
-per block usually means a CRS/nodata mismatch).
+approach, but it has only been exercised against synthetic test rasters,
+not a real ETa/NDVI/Sentinel-2 product. Test with a real file before
+relying on this in production; if results look wrong, check first:
+  - CRS/nodata mismatch (all-null or all-zero per block)
+  - the Sentinel imagery band order assumption (see ndwi_mean_per_block)
 """
-import io
 import json
 import os
 from datetime import date, datetime
 
 import geopandas as gpd
 import pandas as pd
-import requests
 
 from block_context import store as block_store
 
@@ -72,6 +71,16 @@ class DailyStatsStore:
         self._reindex()
         self._json_cache = None
 
+        # Each block's area (m2) is static and already present on most
+        # existing rows - reuse it rather than recomputing from geometry
+        # (which would need a metric-CRS reprojection to get right).
+        self.area_m2_by_block = {}
+        for r in self.rows:
+            block = r.get("Block_ID")
+            area = r.get("Area_m2")
+            if block and area is not None and block not in self.area_m2_by_block:
+                self.area_m2_by_block[block] = area
+
     def to_json(self) -> str:
         """Cached serialization - re-encoding 80k+ rows on every GET would be
         wasteful, so this only re-serializes after an upsert changes data."""
@@ -104,112 +113,94 @@ class DailyStatsStore:
                 stage = stage_name
         return stage
 
-    def zonal_mean_per_block(self, raster_bytes: bytes) -> dict:
-        """Mean raster value within each block polygon, keyed by Block_ID."""
-        import rasterio
-        from rasterio.io import MemoryFile
+    def _zonal_mean(self, values, transform, crs, nodata):
+        """Shared helper: mean of a raster array within each block polygon."""
         from rasterstats import zonal_stats
 
-        with MemoryFile(raster_bytes) as memfile:
-            with memfile.open() as src:
-                blocks = self.blocks_gdf
-                if src.crs is not None and blocks.crs != src.crs:
-                    blocks = blocks.to_crs(src.crs)
-                band = src.read(1, masked=True)
-                stats = zonal_stats(
-                    blocks,
-                    band,
-                    affine=src.transform,
-                    nodata=src.nodata,
-                    stats=["mean"],
-                )
+        blocks = self.blocks_gdf
+        if crs is not None and blocks.crs != crs:
+            blocks = blocks.to_crs(crs)
+        stats = zonal_stats(blocks, values, affine=transform, nodata=nodata, stats=["mean"])
         return {
             block: s["mean"]
             for block, s in zip(blocks["BLOCK"], stats)
             if s["mean"] is not None
         }
 
-    def parse_precomputed_indices_csv(self, csv_bytes: bytes) -> dict:
-        """'Sentinel imagery' upload: a CSV of already-computed per-block
-        NDVI/NDWI (see the module docstring - not yet tested against a real
-        file, so column names are matched flexibly and generously)."""
-        df = pd.read_csv(io.BytesIO(csv_bytes))
-        cols = {c.strip().lower(): c for c in df.columns}
-        block_col = cols.get("block_id") or cols.get("block")
-        ndvi_col = cols.get("mean_ndvi") or cols.get("ndvi")
-        ndwi_col = cols.get("mean_ndwi") or cols.get("ndwi")
-        if not block_col:
-            raise ValueError("Sentinel imagery CSV needs a Block_ID (or Block) column.")
+    def zonal_mean_per_block(self, raster_bytes: bytes) -> dict:
+        """Mean raster value within each block polygon, keyed by Block_ID.
+        Used for ETa/ETo/Kc/NDVI - each a single-band raster of
+        already-computed values."""
+        import rasterio
+        from rasterio.io import MemoryFile
 
-        result = {}
-        for _, row in df.iterrows():
-            block = row[block_col]
-            entry = {}
-            if ndvi_col and pd.notna(row.get(ndvi_col)):
-                entry["Mean_NDVI"] = float(row[ndvi_col])
-            if ndwi_col and pd.notna(row.get(ndwi_col)):
-                entry["Mean_NDWI"] = float(row[ndwi_col])
-            if entry:
-                result[block] = entry
-        return result
+        with MemoryFile(raster_bytes) as memfile:
+            with memfile.open() as src:
+                band = src.read(1, masked=True)
+                return self._zonal_mean(band, src.transform, src.crs, src.nodata)
 
-    def precip_for_date(self, date_str: str):
-        """Historical rainfall from the same Open-Meteo archive endpoint the
-        frontend's WeatherWidget already uses - none of the 5 upload types
-        (ETa/ETo/Kc/NDVI/Sentinel imagery) carry precipitation. The whole
-        vineyard spans under 2km, so one representative point (the block
-        centroid average) stands in for all blocks rather than making a
-        separate request per block - daily rainfall doesn't meaningfully
-        vary over that distance, and Open-Meteo's own model grid is coarser
-        than the vineyard anyway."""
-        centroid = block_store.fields[["Y", "X"]].mean()
-        try:
-            resp = requests.get(
-                "https://archive-api.open-meteo.com/v1/archive",
-                params={
-                    "latitude": centroid["Y"],
-                    "longitude": centroid["X"],
-                    "start_date": date_str,
-                    "end_date": date_str,
-                    "daily": "precipitation_sum",
-                    "timezone": "auto",
-                },
-                timeout=10,
-            )
-            resp.raise_for_status()
-            values = resp.json().get("daily", {}).get("precipitation_sum") or []
-            return values[0] if values else None
-        except requests.RequestException:
-            return None
+    def ndwi_mean_per_block(self, raster_bytes: bytes) -> dict:
+        """'Sentinel imagery' upload: a raw 4-band raster, assumed band
+        order [B4, B3, B2, B8] (Red, Green, Blue, NIR) per how these bands
+        were specified. NDWI = (Green - NIR) / (Green + NIR) = (B3 - B8) /
+        (B3 + B8), computed per pixel then averaged per block.
+
+        This band-order assumption is unverified against a real Sentinel-2
+        file - if NDWI values come back implausible (e.g. outside [-1, 1]
+        or suspiciously uniform), check the actual band order first."""
+        import numpy as np
+        import rasterio
+        from rasterio.io import MemoryFile
+
+        with MemoryFile(raster_bytes) as memfile:
+            with memfile.open() as src:
+                if src.count < 4:
+                    raise ValueError(
+                        f"Sentinel imagery raster needs 4 bands (B4, B3, B2, B8) - got {src.count}."
+                    )
+                green = src.read(2, masked=True).astype("float64")  # B3
+                nir = src.read(4, masked=True).astype("float64")  # B8
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    ndwi = (green - nir) / (green + nir)
+                ndwi = np.ma.masked_invalid(ndwi)
+                return self._zonal_mean(ndwi, src.transform, src.crs, src.nodata)
 
     def build_updates(self, date_str, eta_by_block=None, eto_by_block=None,
-                       kc_by_block=None, ndvi_by_block=None, sentinel_by_block=None):
-        """One merged update row per block touched by any of the uploads."""
+                       kc_by_block=None, ndvi_by_block=None, ndwi_by_block=None,
+                       precip_mm=None, ks=None):
+        """One merged update row per block touched by any of the uploads.
+        precip_mm and ks are single values entered for the whole batch
+        (not per block) - Precip_mm is stored as given; Pheno_Net_mm and
+        Volume_m3 are only computed for blocks where ETa, precip and Ks are
+        all available."""
         record_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         season_label = _season_label(record_date)
         season_number = _season_number(season_label)
 
         all_blocks = set()
-        for d in (eta_by_block, eto_by_block, kc_by_block, ndvi_by_block, sentinel_by_block):
+        for d in (eta_by_block, eto_by_block, kc_by_block, ndvi_by_block, ndwi_by_block):
             if d:
                 all_blocks.update(d.keys())
-
-        # One rainfall lookup for the whole batch (see precip_for_date) rather
-        # than one per block - was the bottleneck (~1 request/block/upload).
-        precip = self.precip_for_date(date_str)
 
         updates = {}
         for block in all_blocks:
             eta = (eta_by_block or {}).get(block)
             eto = (eto_by_block or {}).get(block)
             kc = (kc_by_block or {}).get(block)
-            ndvi = (ndvi_by_block or {}).get(block)
-            sentinel = (sentinel_by_block or {}).get(block) or {}
-            mean_ndvi = ndvi if ndvi is not None else sentinel.get("Mean_NDVI")
-            mean_ndwi = sentinel.get("Mean_NDWI")
+            mean_ndvi = (ndvi_by_block or {}).get(block)
+            mean_ndwi = (ndwi_by_block or {}).get(block)
 
-            net_irrigation = (eta - precip) if (eta is not None and precip is not None) else None
+            net_irrigation = (eta - precip_mm) if (eta is not None and precip_mm is not None) else None
             net_deficit = max(net_irrigation, 0) if net_irrigation is not None else None
+
+            # Pheno_Net_mm = (ETa - Precip) x Ks
+            pheno_net_mm = (eta - precip_mm) * ks if (eta is not None and precip_mm is not None and ks is not None) else None
+
+            # Litres = Pheno_Net_mm x block area, then Volume_m3 = that / 1000
+            # - matches the existing dataset's Litres/Volume_m3 relationship.
+            area_m2 = self.area_m2_by_block.get(block)
+            litres = pheno_net_mm * area_m2 if (pheno_net_mm is not None and area_m2 is not None) else None
+            volume_m3 = litres / 1000 if litres is not None else None
 
             field_rows = block_store.fields[block_store.fields["BLOCK"] == block]
             cultivar = field_rows.iloc[0]["CULTIVAR"] if not field_rows.empty else None
@@ -221,9 +212,14 @@ class DailyStatsStore:
                 "ETa_mm": eta,
                 "ETo_mm": eto,
                 "Kc": kc,
-                "Precip_mm": precip,
+                "Ks": ks,
+                "Precip_mm": precip_mm,
                 "Net_Irrigation_mm": net_irrigation,
                 "Net_Deficit_mm": net_deficit,
+                "Pheno_Net_mm": pheno_net_mm,
+                "Area_m2": area_m2,
+                "Litres": litres,
+                "Volume_m3": volume_m3,
                 "Cultivar": cultivar,
                 "Growth_Stage": self.growth_stage_for(block, record_date),
                 "Mean_NDVI": mean_ndvi,
