@@ -1,4 +1,5 @@
 import React from 'react';
+import HelpTip from './HelpTip';
 
 export default function TopBar({ timeframe, setTimeframe, sidebarCollapsed, onToggleSidebar }) {
   const handlePrint = () => {
@@ -8,32 +9,39 @@ export default function TopBar({ timeframe, setTimeframe, sidebarCollapsed, onTo
   return (
     <header className="top-bar">
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <button
-          className="sidebar-toggle-btn"
-          onClick={onToggleSidebar}
-          title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-        >
-          {sidebarCollapsed ? '☰' : '⟨'}
-        </button>
+        <HelpTip text={sidebarCollapsed ? 'Show the block list.' : 'Hide the block list to see more of the screen.'}>
+          <button
+            className="sidebar-toggle-btn"
+            onClick={onToggleSidebar}
+          >
+            {sidebarCollapsed ? '☰' : '⟨'}
+          </button>
+        </HelpTip>
         <div className="timeframe-controls">
-          <button
-            className={timeframe === 'Now' ? 'active' : ''}
-            onClick={() => setTimeframe('Now')}
-          >
-            Current Week
-          </button>
-          <button
-            className={timeframe === 'Predictive' ? 'active' : ''}
-            onClick={() => setTimeframe('Predictive')}
-          >
-            Next Week Forecast
-          </button>
+          <HelpTip text="View this block's most recently recorded data.">
+            <button
+              className={timeframe === 'Now' ? 'active' : ''}
+              onClick={() => setTimeframe('Now')}
+            >
+              Current Week
+            </button>
+          </HelpTip>
+          <HelpTip text="View a live 7-day irrigation forecast for this block.">
+            <button
+              className={timeframe === 'Predictive' ? 'active' : ''}
+              onClick={() => setTimeframe('Predictive')}
+            >
+              Next Week Forecast
+            </button>
+          </HelpTip>
         </div>
       </div>
 
-      <button className="print-btn" onClick={handlePrint}>
-        Generate Report
-      </button>
+      <HelpTip text="Print or save a PDF of what's currently on screen.">
+        <button className="print-btn" onClick={handlePrint}>
+          Generate Report
+        </button>
+      </HelpTip>
     </header>
   );
 }

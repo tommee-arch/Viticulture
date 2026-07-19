@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import logo from '../sprinklers.png';
+import HelpTip from './HelpTip';
 export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedField, setSelectedField, collapsed }) {
   const [isDecisionSupportOpen, setIsDecisionSupportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,37 +26,51 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
       </div>
 
       <nav className="nav-menu">
-        <button className={activeTab === 'Home' ? 'active' : ''} onClick={() => setActiveTab('Home')}>Home</button>
-        <button className={activeTab === 'Fields' ? 'active' : ''} onClick={() => setActiveTab('Fields')}>Fields</button>
-        
+        <HelpTip text="See the whole vineyard on one map, coloured by whichever metric you pick." className="help-tip-block">
+          <button className={activeTab === 'Home' ? 'active' : ''} onClick={() => setActiveTab('Home')}>Home</button>
+        </HelpTip>
+        <HelpTip text="Drill into a single block's water, weather and health data." className="help-tip-block">
+          <button className={activeTab === 'Fields' ? 'active' : ''} onClick={() => setActiveTab('Fields')}>Fields</button>
+        </HelpTip>
+
         <div className="accordion">
-          <button 
-            className={`accordion-toggle ${isDecisionSupportOpen ? 'open' : ''}`}
-            onClick={() => setIsDecisionSupportOpen(!isDecisionSupportOpen)}
-          >
-            Decision Support
-            <span className="chevron">{isDecisionSupportOpen ? ' ▼' : ' ▶'}</span>
-          </button>
-          
+          <HelpTip text="Tools that help you decide where irrigation is needed most." className="help-tip-block">
+            <button
+              className={`accordion-toggle ${isDecisionSupportOpen ? 'open' : ''}`}
+              onClick={() => setIsDecisionSupportOpen(!isDecisionSupportOpen)}
+            >
+              Decision Support
+              <span className="chevron">{isDecisionSupportOpen ? ' ▼' : ' ▶'}</span>
+            </button>
+          </HelpTip>
+
           {isDecisionSupportOpen && (
             <div className="accordion-content">
-              <button className={activeTab === 'Irrigation Planner' ? 'active' : ''} onClick={() => setActiveTab('Irrigation Planner')}>Irrigation Planner</button>
-              <button className={activeTab === 'Fertigation Manager' ? 'active' : ''} onClick={() => setActiveTab('Fertigation Manager')}>Fertigation Manager</button>
+              <HelpTip text="See every block ranked by irrigation priority, with a live map, chart and AI assistant." className="help-tip-block">
+                <button className={activeTab === 'Irrigation Planner' ? 'active' : ''} onClick={() => setActiveTab('Irrigation Planner')}>Irrigation Planner</button>
+              </HelpTip>
+              <HelpTip text="Plan fertiliser application rates per block (coming soon)." className="help-tip-block">
+                <button className={activeTab === 'Fertigation Manager' ? 'active' : ''} onClick={() => setActiveTab('Fertigation Manager')}>Fertigation Manager</button>
+              </HelpTip>
             </div>
           )}
         </div>
-        
-        <button className={activeTab === 'Weather' ? 'active' : ''} onClick={() => setActiveTab('Weather')}>Weather</button>
+
+        <HelpTip text="Regional weather radar (coming soon)." className="help-tip-block">
+          <button className={activeTab === 'Weather' ? 'active' : ''} onClick={() => setActiveTab('Weather')}>Weather</button>
+        </HelpTip>
       </nav>
 
       <div className="field-selector">
         <div className="search-container">
-          <input 
-            type="text" 
-            placeholder="Find a block or cultivar..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <HelpTip text="Type a block name or grape variety to filter the list below." className="help-tip-block">
+            <input
+              type="text"
+              placeholder="Find a block or cultivar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </HelpTip>
         </div>
         <ul className="field-list">
           {filteredFields.map((field, idx) => (

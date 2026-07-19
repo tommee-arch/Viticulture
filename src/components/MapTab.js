@@ -5,6 +5,7 @@ import LabelVisibilityToggler from './LabelVisibilityToggler';
 import CursorPosition from './CursorPosition';
 import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from '../utils/colorScale';
 import { sumVRequiredByBlock } from '../utils/vRequired';
+import HelpTip from './HelpTip';
 
 export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson }) {
   // State for the fill opacity slider (0 to 1) - also drives the ET/Net Deficit/NDVI/NDWI/Irrigation overlays
@@ -118,24 +119,27 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
       <div className="opacity-slider-control" style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, background: 'white', padding: '10px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', minWidth: '190px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '10px' }}>
           {[
-            { key: 'selection', label: 'Selection' },
-            { key: 'et', label: 'ET' },
-            { key: 'deficit', label: 'Net Deficit' },
-            { key: 'ndvi', label: 'NDVI' },
-            { key: 'ndwi', label: 'NDWI' },
-            { key: 'irrigation', label: 'Irrigation Vol.' }
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setColorMode(key)}
-              style={{ flex: '1 1 40%', padding: '4px 6px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: colorMode === key ? '#2ca25f' : '#f0f0f0', color: colorMode === key ? 'white' : '#333' }}
-            >
-              {label}
-            </button>
+            { key: 'selection', label: 'Selection', help: 'Just highlight the selected block.' },
+            { key: 'et', label: 'ET', help: 'Colour every block by evapotranspiration.' },
+            { key: 'deficit', label: 'Net Deficit', help: 'Colour every block by net water deficit.' },
+            { key: 'ndvi', label: 'NDVI', help: 'Colour every block by plant health.' },
+            { key: 'ndwi', label: 'NDWI', help: 'Colour every block by soil moisture.' },
+            { key: 'irrigation', label: 'Irrigation Vol.', help: 'Colour every block by irrigation volume required.' }
+          ].map(({ key, label, help }) => (
+            <HelpTip key={key} text={help} style={{ flex: '1 1 40%' }}>
+              <button
+                type="button"
+                onClick={() => setColorMode(key)}
+                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: colorMode === key ? '#2ca25f' : '#f0f0f0', color: colorMode === key ? 'white' : '#333' }}
+              >
+                {label}
+              </button>
+            </HelpTip>
           ))}
         </div>
-        <label htmlFor="opacity">Fill Opacity: {Math.round(fillOpacity * 100)}%</label>
+        <HelpTip text="How solid the colour overlay looks on the map." className="help-tip-block">
+          <label htmlFor="opacity">Fill Opacity: {Math.round(fillOpacity * 100)}%</label>
+        </HelpTip>
         <input
           id="opacity"
           type="range"

@@ -9,6 +9,7 @@ import { findClosestDate } from './utils/dateLookup';
 import { sumVRequiredByBlock } from './utils/vRequired';
 import { formatSeason, ndviToHealth } from './utils/fieldMetrics';
 import { deriveGrowthStage } from './utils/growthStage';
+import HelpTip from './components/HelpTip';
 
 // Stable reference for the 'forecast' mode, which has no backing dataset yet -
 // a fresh [] literal on every render would break the useMemo hooks below.
@@ -191,50 +192,60 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-                  <button
-                    type="button"
-                    onClick={() => setDataMode('weekly')}
-                    style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'weekly' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'weekly' ? 'white' : '#333' }}
-                  >
-                    Weekly
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDataMode('daily')}
-                    style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'daily' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'daily' ? 'white' : '#333' }}
-                  >
-                    Daily
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDataMode('forecast')}
-                    style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'forecast' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'forecast' ? 'white' : '#333' }}
-                  >
-                    Forecast
-                  </button>
+                  <HelpTip text="View data totalled over each week.">
+                    <button
+                      type="button"
+                      onClick={() => setDataMode('weekly')}
+                      style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'weekly' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'weekly' ? 'white' : '#333' }}
+                    >
+                      Weekly
+                    </button>
+                  </HelpTip>
+                  <HelpTip text="View data for a single day at a time.">
+                    <button
+                      type="button"
+                      onClick={() => setDataMode('daily')}
+                      style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'daily' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'daily' ? 'white' : '#333' }}
+                    >
+                      Daily
+                    </button>
+                  </HelpTip>
+                  <HelpTip text="View a live 7-day irrigation forecast using weather data.">
+                    <button
+                      type="button"
+                      onClick={() => setDataMode('forecast')}
+                      style={{ padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer', background: dataMode === 'forecast' ? '#2ca25f' : '#f0f0f0', color: dataMode === 'forecast' ? 'white' : '#333' }}
+                    >
+                      Forecast
+                    </button>
+                  </HelpTip>
                 </div>
 
-                <input
-                  type="date"
-                  value={selectedDate || ''}
-                  min={availableDates[0] || undefined}
-                  max={availableDates[availableDates.length - 1] || undefined}
-                  onChange={(e) => handleDatePick(e.target.value)}
-                  style={{ fontSize: '12px', padding: '3px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                />
+                <HelpTip text="Jump straight to a specific date.">
+                  <input
+                    type="date"
+                    value={selectedDate || ''}
+                    min={availableDates[0] || undefined}
+                    max={availableDates[availableDates.length - 1] || undefined}
+                    onChange={(e) => handleDatePick(e.target.value)}
+                    style={{ fontSize: '12px', padding: '3px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  />
+                </HelpTip>
               </div>
             </div>
 
             {availableDates.length > 0 && (
               <div style={{ margin: '10px 0 4px' }}>
-                <input
-                  type="range"
-                  min={0}
-                  max={availableDates.length - 1}
-                  value={selectedIndex}
-                  onChange={(e) => setSelectedDate(availableDates[Number(e.target.value)])}
-                  style={{ width: '100%' }}
-                />
+                <HelpTip text="Drag to scrub through the available dates." className="help-tip-block">
+                  <input
+                    type="range"
+                    min={0}
+                    max={availableDates.length - 1}
+                    value={selectedIndex}
+                    onChange={(e) => setSelectedDate(availableDates[Number(e.target.value)])}
+                    style={{ width: '100%' }}
+                  />
+                </HelpTip>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#666' }}>
                   <span>{availableDates[0]}</span>
                   <span style={{ fontWeight: 'bold', color: '#333' }}>{selectedDate}</span>
@@ -245,13 +256,13 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
 
             <table>
               <tbody>
-                <tr><td>Cultivar</td><td>{field.CULTIVAR}</td></tr>
-                <tr><td>Area</td><td>{Number(field.Area).toFixed(3)} ha</td></tr>
+                <tr><td><HelpTip text="Grape variety planted in this block.">Cultivar</HelpTip></td><td>{field.CULTIVAR}</td></tr>
+                <tr><td><HelpTip text="Size of this block in hectares.">Area</HelpTip></td><td>{Number(field.Area).toFixed(3)} ha</td></tr>
                 {/* New data from vineyard_STAR.csv */}
-                <tr><td>Season</td><td>{currentSeason || 'Current'}</td></tr>
-                <tr><td>Growth Stage</td><td>{growthStage}</td></tr>
+                <tr><td><HelpTip text="Growing season this record belongs to.">Season</HelpTip></td><td>{currentSeason || 'Current'}</td></tr>
+                <tr><td><HelpTip text="Where this block is in its growing season, as of the date above.">Growth Stage</HelpTip></td><td>{growthStage}</td></tr>
                 <tr>
-                  <td>Plant Health</td>
+                  <td><HelpTip text="Overall canopy health, from satellite NDVI.">Plant Health</HelpTip></td>
                   <td className={['Excellent', 'Good'].includes(plantHealth) ? 'status-good' : 'status-warning'}>
                     {plantHealth}
                   </td>
@@ -262,31 +273,34 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
           <div className="card map-container-card" style={{ height: mapExpanded ? '650px' : '300px', position: 'relative', transition: 'height 0.3s ease' }}>
             <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000, display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '160px' }}>
               {[
-                { key: 'selection', label: 'Sel' },
-                { key: 'et', label: 'ET' },
-                { key: 'deficit', label: 'Deficit' },
-                { key: 'ndvi', label: 'NDVI' },
-                { key: 'ndwi', label: 'NDWI' },
-                { key: 'irrigation', label: 'Irr. Vol.' }
-              ].map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setColorMode(key)}
-                  style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: colorMode === key ? '#2ca25f' : 'white', color: colorMode === key ? 'white' : '#333', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
-                >
-                  {label}
-                </button>
+                { key: 'selection', label: 'Sel', help: 'Just highlight the selected block.' },
+                { key: 'et', label: 'ET', help: 'Colour every block by evapotranspiration.' },
+                { key: 'deficit', label: 'Deficit', help: 'Colour every block by net water deficit.' },
+                { key: 'ndvi', label: 'NDVI', help: 'Colour every block by plant health.' },
+                { key: 'ndwi', label: 'NDWI', help: 'Colour every block by soil moisture.' },
+                { key: 'irrigation', label: 'Irr. Vol.', help: 'Colour every block by irrigation volume required.' }
+              ].map(({ key, label, help }) => (
+                <HelpTip key={key} text={help}>
+                  <button
+                    type="button"
+                    onClick={() => setColorMode(key)}
+                    style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', background: colorMode === key ? '#2ca25f' : 'white', color: colorMode === key ? 'white' : '#333', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+                  >
+                    {label}
+                  </button>
+                </HelpTip>
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setMapExpanded(v => !v)}
-              style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000, background: 'white', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
-            >
-              {mapExpanded ? 'Collapse Map' : 'Expand Map'}
-            </button>
+            <HelpTip text="Make the map bigger and the stats smaller.">
+              <button
+                type="button"
+                onClick={() => setMapExpanded(v => !v)}
+                style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000, background: 'white', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+              >
+                {mapExpanded ? 'Collapse Map' : 'Expand Map'}
+              </button>
+            </HelpTip>
 
             {colorMode !== 'selection' && (
               <div style={{ position: 'absolute', bottom: '10px', left: '10px', zIndex: 1000, background: 'white', padding: '6px 10px', borderRadius: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', fontSize: '10px', minWidth: '140px' }}>
@@ -350,7 +364,9 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
         <div className="col-right" style={{ overflow: 'hidden' }}>
           {dataMode === 'forecast' ? (
             <div className="card">
-              <h3 style={{ marginTop: 0 }}>7-Day Irrigation Forecast</h3>
+              <h3 style={{ marginTop: 0 }}>
+                <HelpTip text="Forecasted irrigation need for the next 7 days, using live weather data.">7-Day Irrigation Forecast</HelpTip>
+              </h3>
               <ForecastPanel
                 lat={lat}
                 lng={lng}
@@ -362,31 +378,31 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
             <>
               <div className="kpi-grid" style={{ gridTemplateColumns: mapExpanded ? '1fr' : 'repeat(3, 1fr)', transition: 'grid-template-columns 0.3s ease' }}>
                 <div className="card kpi">
-                  <span className="label">Irrigation Net</span>
+                  <HelpTip text="Total irrigation volume recommended for this block right now." className="label"><span>Irrigation Net</span></HelpTip>
                   <span className="value">{currentVRequired != null ? Math.round(currentVRequired).toLocaleString() : '—'} <span className="unit">m³</span></span>
                 </div>
                 <div className="card kpi">
-                  <span className="label">Evapotranspiration</span>
+                  <HelpTip text="How much water this block's vines are losing to the air." className="label"><span>Evapotranspiration</span></HelpTip>
                   <span className="value">
                     {currentRecord ? currentRecord.ETa_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
                   </span>
                 </div>
                 <div className="card kpi">
-                  <span className="label">Net Deficit</span>
+                  <HelpTip text="How much more water the vines need than they've received from rain." className="label"><span>Net Deficit</span></HelpTip>
                   <span className="value">
                     {currentRecord ? currentRecord.Net_Deficit_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
                   </span>
                 </div>
                 <div className="card kpi">
-                  <span className="label">NDWI</span>
+                  <HelpTip text="Satellite soil moisture index - higher means wetter soil." className="label"><span>NDWI</span></HelpTip>
                   <span className="value">{currentNdwi != null ? currentNdwi.toFixed(2) : '—'}</span>
                 </div>
                 <div className={`card kpi ${stress ? stress.className : ''}`}>
-                  <span className="label">Environmental Stress</span>
+                  <HelpTip text="How urgently this block needs water, based on its net deficit." className="label"><span>Environmental Stress</span></HelpTip>
                   <span className="value">{stress ? stress.label : '—'}</span>
                 </div>
                 <div className="card kpi">
-                  <span className="label">NDVI Index</span>
+                  <HelpTip text="Satellite plant health index - higher means healthier canopy." className="label"><span>NDVI Index</span></HelpTip>
                   <span className="value">{currentNdvi != null ? currentNdvi.toFixed(2) : '—'}</span>
                 </div>
               </div>
