@@ -12,6 +12,28 @@ frontend.
   returns `{ "answer": "...", "context": {...} }`. `history` is the frontend's
   chat log, `[{ "sender": "user" | "gemini", "text": "..." }, ...]`.
 - `GET /api/health` - `{ "status": "ok", "gemini_configured": true|false }`.
+- `GET /api/daily-statistics` - the live `Daily_Statistics.json` (per-block,
+  per-day ETa/Net Deficit/Net Irrigation/NDVI/NDWI/Growth Stage/Season).
+  Frontend falls back to its bundled static copy if this is unreachable.
+- `POST /api/upload-daily-data` - multipart form: `date` (YYYY-MM-DD),
+  `mode` (`calculate` to preview without saving, or `upload` to persist),
+  and up to 5 files keyed `ETa`, `ETo`, `Kc`, `NDVI` (single-band GeoTIFF
+  rasters - reduced to a per-block mean via zonal statistics against
+  `data/Tokara_Study_Area.json`) and `Sentinel imagery` (a CSV of
+  already-computed per-block NDVI/NDWI, columns like `Block_ID`/`Mean_NDVI`/
+  `Mean_NDWI`). Precipitation (needed to derive `Net_Irrigation_mm` /
+  `Net_Deficit_mm` - none of the 5 uploads carry it) comes from the same
+  Open-Meteo historical archive the frontend's weather widget uses, fetched
+  once per upload for the vineyard's centroid.
+  **Caveat**: built and tested against a synthetic raster (no real
+  ETa/NDVI/Sentinel-2 sample file was available) - the zonal-statistics
+  and CRS-reprojection logic works correctly in that test, but hasn't been
+  verified against a real product. If real uploads come back all-null,
+  check the raster's CRS/nodata value first.
+  **Persistence caveat**: on a host with an ephemeral filesystem (e.g.
+  Render's free tier), `mode: upload` updates the in-memory copy for the
+  life of that process but does NOT survive a restart/redeploy - fine for a
+  demo, but a real deployment needs a database or object storage here.
 
 ## Run locally
 
@@ -57,5 +79,17 @@ Railway and Fly.io work the same way (Python buildpack + `Procfile`).
 
 `data/` is a static copy of the datasets the frontend reads from
 `irrigation-dashboard/public/data/` (vineyard block metadata, weekly
-irrigation readings, required irrigation volumes). Re-copy those three files
-here if the source data is ever regenerated.
+irrigation readings, required irrigation volumes, block boundaries,
+phenology dates, and the daily statistics dataset). Re-copy the relevant
+file(s) here if the source data is ever regenerated - except
+`Daily_Statistics.json`, which this backend now owns and mutates via
+`/api/upload-daily-data`; don't overwrite the backend's copy with the
+frontend's static one without checking which has newer uploads.
+
+## Geospatial dependencies
+
+`geopandas`/`rasterio`/`rasterstats`/`shapely` (for the upload endpoint's
+zonal statistics) pull in native GDAL bindings - confirmed installing and
+importing cleanly on Python 3.10/Windows during development, but native
+deps like these can behave differently on Render's Linux build image. If
+the Render build fails on these, that's the first thing to check.

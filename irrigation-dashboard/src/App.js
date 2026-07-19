@@ -8,6 +8,9 @@ import MapTab from './components/MapTab'; // Assuming you have a full-screen map
 import IrrigationPlanner from './Irrigation_Planner';
 import './App.css';
 
+// Same Flask backend as the Gemini advisor and the data-upload popup.
+const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localhost:5000';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('Fields');
   const [timeframe, setTimeframe] = useState('Now');
@@ -36,6 +39,33 @@ export default function App() {
       .catch(error => console.error("Error loading ML-ready dataset:", error))
       .finally(() => setMlReadyLoading(false));
   }, [mlReadyData, mlReadyLoading]);
+
+  // Daily_Statistics.json is ~57MB (the enriched per-block/per-day dataset -
+  // ETa, Net Deficit, Net Irrigation, NDVI, NDWI, Growth Stage, Season) -
+  // only fetched the first time the Fields tab's Daily mode is opened.
+  // The backend keeps the live copy (uploads update it there), so that's
+  // tried first; the static bundled copy is a fallback if the backend is
+  // unreachable (e.g. not running locally, or asleep on Render's free tier).
+  const [dailyStatistics, setDailyStatistics] = useState(null);
+  const [dailyStatisticsLoading, setDailyStatisticsLoading] = useState(false);
+  const ensureDailyStatistics = useCallback(() => {
+    if (dailyStatistics || dailyStatisticsLoading) return;
+    setDailyStatisticsLoading(true);
+    fetch(`${ADVISOR_API_URL}/api/daily-statistics`)
+      .then(response => {
+        if (!response.ok) throw new Error(`Backend returned ${response.status}`);
+        return response.json();
+      })
+      .then(data => setDailyStatistics(data))
+      .catch(error => {
+        console.error("Backend daily statistics unavailable, falling back to the static file:", error);
+        return fetch(`${process.env.PUBLIC_URL}/data/Daily_Statistics.json`)
+          .then(response => response.json())
+          .then(data => setDailyStatistics(data))
+          .catch(fallbackError => console.error("Error loading daily statistics dataset:", fallbackError));
+      })
+      .finally(() => setDailyStatisticsLoading(false));
+  }, [dailyStatistics, dailyStatisticsLoading]);
 
   useEffect(() => {
     // process.env.PUBLIC_URL ensures the path resolves correctly on GitHub Pages
@@ -148,7 +178,6 @@ export default function App() {
               fields={fieldsData}
               setSelectedField={setSelectedField}
               studyAreaGeojson={studyAreaGeojson}
-              dailyIrrigation={dailyIrrigation}
               weeklyIrrigation={weeklyIrrigation}
               ndviStats={ndviStats}
               ndwiSoilStats={ndwiSoilStats}
@@ -157,6 +186,9 @@ export default function App() {
               mlReadyData={mlReadyData}
               mlReadyLoading={mlReadyLoading}
               ensureMlReadyDataset={ensureMlReadyDataset}
+              dailyStatistics={dailyStatistics}
+              dailyStatisticsLoading={dailyStatisticsLoading}
+              ensureDailyStatistics={ensureDailyStatistics}
             />
           )}
 

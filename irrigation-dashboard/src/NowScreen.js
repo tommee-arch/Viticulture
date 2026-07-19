@@ -27,19 +27,22 @@ function environmentalStress(deficit, dataMode) {
   return { label: 'Low', className: 'stress-low' };
 }
 
-export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson, phenoData = [], mlReadyData, mlReadyLoading, ensureMlReadyDataset }) {
+export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson, phenoData = [], mlReadyData, mlReadyLoading, ensureMlReadyDataset, dailyStatistics, dailyStatisticsLoading, ensureDailyStatistics }) {
   const [dataMode, setDataMode] = useState('weekly');
   const [selectedDate, setSelectedDate] = useState(null);
   const [mapExpanded, setMapExpanded] = useState(false);
   // 'selection' (yellow highlight), 'et' (Evapotranspiration), or 'deficit' (Net Deficit)
   const [colorMode, setColorMode] = useState('selection');
 
+  // Daily mode reads from Daily_Statistics.json - a richer per-block/per-day
+  // dataset (ETa, Net Deficit, Net Irrigation, NDVI, NDWI, Growth Stage,
+  // Season all together) rather than stitching together several sources.
   const dailyForBlock = useMemo(() => {
-    if (!field) return [];
-    return dailyIrrigation
+    if (!field || !dailyStatistics) return [];
+    return dailyStatistics
       .filter(d => d.Block_ID === field.BLOCK)
       .sort((a, b) => a.Date.localeCompare(b.Date));
-  }, [dailyIrrigation, field]);
+  }, [dailyStatistics, field]);
 
   const weeklyForBlock = useMemo(() => {
     if (!field) return [];
@@ -54,7 +57,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const availableDates = useMemo(() => activeSeries.map(d => d.Date), [activeSeries]);
 
   // Every block's reading on the selected date, for the ET/Net Deficit map overlays.
-  const activeFullSeries = dataMode === 'daily' ? dailyIrrigation : dataMode === 'weekly' ? weeklyIrrigation : EMPTY_ARRAY;
+  const activeFullSeries = dataMode === 'daily' ? (dailyStatistics || EMPTY_ARRAY) : dataMode === 'weekly' ? weeklyIrrigation : EMPTY_ARRAY;
   const recordsForSelectedDate = useMemo(() => {
     const map = {};
     if (!selectedDate) return map;
@@ -106,6 +109,11 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
     if (dataMode === 'forecast') ensureMlReadyDataset();
   }, [dataMode, ensureMlReadyDataset]);
 
+  // Daily_Statistics.json is even larger, so it's only fetched once Daily mode is opened.
+  useEffect(() => {
+    if (dataMode === 'daily') ensureDailyStatistics();
+  }, [dataMode, ensureDailyStatistics]);
+
   // Whenever the block or the weekly/daily mode changes, snap to the most recent
   // available date unless the current selection is still valid for the new series.
   useEffect(() => {
@@ -116,8 +124,15 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
 
   const selectedIndex = Math.max(0, availableDates.indexOf(selectedDate));
   const currentRecord = activeSeries[selectedIndex] || null;
-  const currentNdvi = ndviByBlockAtDate[field.BLOCK]?.mean ?? null;
-  const currentNdwi = ndwiByBlockAtDate[field.BLOCK]?.ndwi?.mean ?? null;
+  // Daily mode has an exact NDVI/NDWI/Growth Stage reading for every date in
+  // Daily_Statistics.json - Weekly falls back to the sparse satellite-pass
+  // lookup and the phenology-CSV-derived stage, same as before.
+  const currentNdvi = dataMode === 'daily'
+    ? (currentRecord?.Mean_NDVI ?? null)
+    : (ndviByBlockAtDate[field.BLOCK]?.mean ?? null);
+  const currentNdwi = dataMode === 'daily'
+    ? (currentRecord?.Mean_NDWI ?? null)
+    : (ndwiByBlockAtDate[field.BLOCK]?.ndwi?.mean ?? null);
   const currentVRequired = vRequiredByBlock[field.BLOCK] ?? null;
   const currentSeason = formatSeason(currentRecord?.Season) || field.season || null;
   const plantHealth = ndviToHealth(currentNdvi);
@@ -127,7 +142,9 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const currentPheno = phenoData.find(r => r['Block ID'] === field.BLOCK && r.season === currentSeason)
     || phenoData.find(r => r['Block ID'] === field.BLOCK)
     || null;
-  const growthStage = deriveGrowthStage(selectedDate, currentPheno);
+  const growthStage = dataMode === 'daily'
+    ? (currentRecord?.Growth_Stage || 'Unknown')
+    : deriveGrowthStage(selectedDate, currentPheno);
 
   const handleDatePick = (dateStr) => {
     if (!dateStr || availableDates.length === 0) return;
@@ -376,10 +393,22 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
             </div>
           ) : (
             <>
+              {dataMode === 'daily' && dailyStatisticsLoading && !dailyStatistics && (
+                <div className="card" style={{ marginBottom: '16px', fontSize: '0.9em', color: '#666' }}>
+                  Loading daily statistics...
+                </div>
+              )}
               <div className="kpi-grid" style={{ gridTemplateColumns: mapExpanded ? '1fr' : 'repeat(3, 1fr)', transition: 'grid-template-columns 0.3s ease' }}>
                 <div className="card kpi">
-                  <HelpTip text="Total irrigation volume recommended for this block right now." className="label"><span>Irrigation Net</span></HelpTip>
-                  <span className="value">{currentVRequired != null ? Math.round(currentVRequired).toLocaleString() : '—'} <span className="unit">m³</span></span>
+                  <HelpTip
+                    text={dataMode === 'daily' ? 'Net irrigation needed on this exact day.' : 'Total irrigation volume recommended for this block right now.'}
+                    className="label"
+                  ><span>Irrigation Net</span></HelpTip>
+                  {dataMode === 'daily' ? (
+                    <span className="value">{currentRecord?.Net_Irrigation_mm != null ? currentRecord.Net_Irrigation_mm.toFixed(2) : '—'} <span className="unit">mm</span></span>
+                  ) : (
+                    <span className="value">{currentVRequired != null ? Math.round(currentVRequired).toLocaleString() : '—'} <span className="unit">m³</span></span>
+                  )}
                 </div>
                 <div className="card kpi">
                   <HelpTip text="How much water this block's vines are losing to the air." className="label"><span>Evapotranspiration</span></HelpTip>

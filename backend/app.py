@@ -5,7 +5,7 @@ import os
 
 import google.generativeai as genai
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 from block_context import get_block_context
@@ -101,6 +101,84 @@ def ask():
             "priority": ctx.priority,
             "volume": ctx.volume,
         },
+    })
+
+
+def _load_daily_store():
+    """Imported lazily (and wrapped by callers in try/except) so that if
+    geopandas/rasterio fail to load on some deployment (native GDAL deps are
+    finicky across platforms), the Gemini advisor endpoints above still work
+    - only the daily-data upload feature degrades."""
+    from daily_stats_store import store
+    return store
+
+
+@app.route("/api/daily-statistics", methods=["GET"])
+def daily_statistics():
+    try:
+        daily_store = _load_daily_store()
+    except Exception:
+        app.logger.exception("daily_stats_store failed to load")
+        return jsonify({"error": "Daily statistics aren't available on this server."}), 503
+    return Response(daily_store.to_json(), mimetype="application/json")
+
+
+def _zonal_stats_if_present(daily_store, field_name):
+    file = request.files.get(field_name)
+    if not file:
+        return None
+    return daily_store.zonal_mean_per_block(file.read())
+
+
+@app.route("/api/upload-daily-data", methods=["POST"])
+def upload_daily_data():
+    date_str = request.form.get("date")
+    mode = request.form.get("mode", "upload")
+    if not date_str:
+        return jsonify({"error": "date is required."}), 400
+
+    try:
+        daily_store = _load_daily_store()
+    except Exception:
+        app.logger.exception("daily_stats_store failed to load")
+        return jsonify({"error": "Daily data processing isn't available on this server (missing geospatial dependencies)."}), 503
+
+    try:
+        eta_by_block = _zonal_stats_if_present(daily_store, "ETa")
+        eto_by_block = _zonal_stats_if_present(daily_store, "ETo")
+        kc_by_block = _zonal_stats_if_present(daily_store, "Kc")
+        ndvi_by_block = _zonal_stats_if_present(daily_store, "NDVI")
+        sentinel_file = request.files.get("Sentinel imagery")
+        sentinel_by_block = daily_store.parse_precomputed_indices_csv(sentinel_file.read()) if sentinel_file else None
+
+        updates = daily_store.build_updates(
+            date_str,
+            eta_by_block=eta_by_block,
+            eto_by_block=eto_by_block,
+            kc_by_block=kc_by_block,
+            ndvi_by_block=ndvi_by_block,
+            sentinel_by_block=sentinel_by_block,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception:
+        app.logger.exception("Failed to process uploaded files for %s", date_str)
+        return jsonify({"error": "Could not process the uploaded files - check they're valid rasters/CSV."}), 400
+
+    if not updates:
+        return jsonify({"error": "No files were provided."}), 400
+
+    if mode == "upload":
+        touched = daily_store.upsert(updates)
+        daily_store.save_to_disk()
+    else:
+        touched = len(updates)
+
+    return jsonify({
+        "mode": mode,
+        "date": date_str,
+        "blocks_updated": touched,
+        "preview": list(updates.values())[:5],
     })
 
 

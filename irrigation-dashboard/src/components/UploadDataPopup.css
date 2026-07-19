@@ -1,0 +1,127 @@
+.upload-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.upload-modal {
+  background: #fff;
+  padding: 32px;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.upload-modal h2 {
+  text-align: center;
+  margin: 0 0 24px;
+}
+
+.upload-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: #666;
+}
+
+.upload-dropzone-row {
+  margin-bottom: 16px;
+}
+
+.upload-dropzone-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.upload-date-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9em;
+  box-sizing: border-box;
+}
+
+.upload-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
+  border-radius: 4px;
+  background: #e8e8e8;
+  border: 2px solid transparent;
+  color: #666;
+  font-size: 13px;
+  text-align: center;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.upload-dropzone.dragging {
+  background: #d0d0d0;
+  border: 2px dashed #888;
+}
+
+.upload-dropzone.has-file {
+  background: #eafaf1;
+  color: #1b7a43;
+  border: 2px solid #27ae60;
+  font-weight: 600;
+}
+
+.upload-status {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.upload-status.success {
+  background: #eafaf1;
+  color: #1b7a43;
+}
+
+.upload-status.error {
+  background: #fadbd8;
+  color: #c0392b;
+}
+
+.upload-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.upload-modal-actions button {
+  flex: 1;
+  background: #009E60;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+.upload-modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
