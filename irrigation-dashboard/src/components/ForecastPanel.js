@@ -78,18 +78,18 @@ export default function ForecastPanel({ lat, lng, kcInfo, kcLoading }) {
               title={`${d.date}: ${d.irrigationRequired.toFixed(1)} mm irrigation required (ETo ${d.eto.toFixed(2)} mm, Precip ${d.precip.toFixed(1)} mm, Kc ${d.kc.toFixed(3)})`}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             >
-              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div style={{ flex: 1, width: '100%', display: 'flex', justifyContent: 'center' }}>
                 {isPositive && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '65%' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', width: '65%', height: '100%' }}>
                     <span style={{ fontSize: '10px', color: PRIMARY_INK, marginBottom: '2px', fontVariantNumeric: 'tabular-nums' }}>{d.irrigationRequired.toFixed(1)}</span>
                     <div style={{ width: '100%', height: `${Math.max(barHeightPct, magnitude > 0 ? 3 : 0)}%`, background: POSITIVE_COLOR, borderRadius: '4px 4px 0 0' }} />
                   </div>
                 )}
               </div>
               <div style={{ width: '100%', height: '1px', background: BASELINE_COLOR }} />
-              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+              <div style={{ flex: 1, width: '100%', display: 'flex', justifyContent: 'center' }}>
                 {!isPositive && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '65%' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '65%', height: '100%' }}>
                     <div style={{ width: '100%', height: `${Math.max(barHeightPct, magnitude > 0 ? 3 : 0)}%`, background: NEGATIVE_COLOR, borderRadius: '0 0 4px 4px' }} />
                     <span style={{ fontSize: '10px', color: PRIMARY_INK, marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>{d.irrigationRequired.toFixed(1)}</span>
                   </div>
