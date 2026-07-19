@@ -13,19 +13,17 @@ import { formatSeason, ndviToHealth } from './utils/fieldMetrics';
 // a fresh [] literal on every render would break the useMemo hooks below.
 const EMPTY_ARRAY = [];
 
-// Mock data generator for sensor metrics not in the CSV
-const generateMockData = (blockName) => {
-  let hash = 0;
-  for (let i = 0; i < blockName.length; i++) {
-    hash = blockName.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const absHash = Math.abs(hash);
-
-  return {
-    soilMoisture: 25 + (absHash % 25),
-    waterUse: 110000 + (absHash % 30000)
-  };
-};
+// Environmental stress level from Net Deficit - thresholds differ for daily
+// vs weekly readings since weekly figures accumulate over 7x the time.
+function environmentalStress(deficit, dataMode) {
+  if (deficit == null) return null;
+  const isWeekly = dataMode === 'weekly';
+  const highThreshold = isWeekly ? 17 : 2;
+  const lowThreshold = isWeekly ? 9 : 1;
+  if (deficit > highThreshold) return { label: 'High', className: 'stress-high' };
+  if (deficit >= lowThreshold) return { label: 'Moderate', className: 'stress-moderate' };
+  return { label: 'Low', className: 'stress-low' };
+}
 
 export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson, mlReadyData, mlReadyLoading, ensureMlReadyDataset }) {
   const [dataMode, setDataMode] = useState('weekly');
@@ -114,7 +112,6 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
 
   if (!field) return <div className="loading">Select a field to view data.</div>;
 
-  const mockData = generateMockData(field.BLOCK || 'default');
   const selectedIndex = Math.max(0, availableDates.indexOf(selectedDate));
   const currentRecord = activeSeries[selectedIndex] || null;
   const currentNdvi = ndviByBlockAtDate[field.BLOCK]?.mean ?? null;
@@ -122,6 +119,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const currentVRequired = vRequiredByBlock[field.BLOCK] ?? null;
   const currentSeason = formatSeason(currentRecord?.Season) || field.season || null;
   const plantHealth = ndviToHealth(currentNdvi);
+  const stress = environmentalStress(currentRecord?.Net_Deficit_mm, dataMode);
 
   const handleDatePick = (dateStr) => {
     if (!dateStr || availableDates.length === 0) return;
@@ -377,9 +375,9 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                   <span className="label">NDWI</span>
                   <span className="value">{currentNdwi != null ? currentNdwi.toFixed(2) : '—'}</span>
                 </div>
-                <div className={`card kpi ${mockData.soilMoisture < 30 ? 'warning' : ''}`}>
-                  <span className="label">Dehydration Risk</span>
-                  <span className="value">{mockData.soilMoisture < 30 ? 'Moderate' : 'Low'}</span>
+                <div className={`card kpi ${stress ? stress.className : ''}`}>
+                  <span className="label">Environmental Stress</span>
+                  <span className="value">{stress ? stress.label : '—'}</span>
                 </div>
                 <div className="card kpi">
                   <span className="label">NDVI Index</span>

@@ -286,8 +286,16 @@ body {
   color: var(--text-muted);
 }
 
-.warning {
-  border-top: 4px solid #f59e0b;
+.stress-low {
+  border-top: 4px solid #22c55e;
+}
+
+.stress-moderate {
+  border-top: 4px solid #eab308;
+}
+
+.stress-high {
+  border-top: 4px solid #ef4444;
 }
 
 .weather-widget {
