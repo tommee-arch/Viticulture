@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './UploadDataPopup.css';
 
 // Same Flask backend as the Gemini advisor (see backend/README.md).
 const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localhost:5000';
+
+// fetch() has no built-in timeout - without this, a dropped/stalled
+// connection (e.g. a Render proxy hiccup) leaves the request hanging
+// forever with no error, and the button just says "Working..." indefinitely
+// with no way to tell it apart from genuinely still processing.
+const UPLOAD_TIMEOUT_MS = 120000;
 
 // Form-field keys the backend expects, each a single-band raster of
 // already-computed values (zonal-averaged per block) - except
@@ -66,6 +72,18 @@ export default function UploadDataPopup({ isOpen, onClose }) {
   const [ks, setKs] = useState('');
   const [status, setStatus] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const timerRef = useRef(null);
+
+  // Ticks once a second while a request is in flight, so "Working..." shows
+  // a live elapsed time instead of sitting static with no way to tell
+  // "still going" from "actually stuck".
+  useEffect(() => {
+    if (!isSubmitting) return undefined;
+    setElapsedSeconds(0);
+    timerRef.current = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
+    return () => clearInterval(timerRef.current);
+  }, [isSubmitting]);
 
   if (!isOpen) return null;
 
@@ -96,10 +114,20 @@ export default function UploadDataPopup({ isOpen, onClose }) {
         if (files[label]) formData.append(label, files[label]);
       });
 
-      const res = await fetch(`${ADVISOR_API_URL}/api/upload-daily-data`, {
-        method: 'POST',
-        body: formData
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+      let res;
+      try {
+        res = await fetch(`${ADVISOR_API_URL}/api/upload-daily-data`, {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
         throw new Error(errBody?.error || `Server returned ${res.status}`);
@@ -113,7 +141,10 @@ export default function UploadDataPopup({ isOpen, onClose }) {
       });
     } catch (err) {
       console.error('Daily data upload failed:', err);
-      setStatus({ type: 'error', message: err.message || 'Something went wrong.' });
+      const message = err.name === 'AbortError'
+        ? `Timed out after ${UPLOAD_TIMEOUT_MS / 1000}s - the file may be too large, or the server is unreachable. Check backend/README.md's raster size guidance, or try a smaller/cropped file.`
+        : (err.message || 'Something went wrong.');
+      setStatus({ type: 'error', message });
     } finally {
       setIsSubmitting(false);
     }
@@ -171,12 +202,17 @@ export default function UploadDataPopup({ isOpen, onClose }) {
 
         <div className="upload-modal-actions">
           <button type="button" onClick={() => handleAction('calculate')} disabled={isSubmitting}>
-            {isSubmitting ? 'Working...' : 'Calculate'}
+            {isSubmitting ? `Working... (${elapsedSeconds}s)` : 'Calculate'}
           </button>
           <button type="button" onClick={() => handleAction('upload')} disabled={isSubmitting}>
-            {isSubmitting ? 'Working...' : 'Upload'}
+            {isSubmitting ? `Working... (${elapsedSeconds}s)` : 'Upload'}
           </button>
         </div>
+        {isSubmitting && (
+          <p style={{ fontSize: '0.8em', color: '#666', textAlign: 'center', marginTop: '8px' }}>
+            Will time out automatically after {UPLOAD_TIMEOUT_MS / 1000}s if the server doesn't respond.
+          </p>
+        )}
       </div>
     </div>
   );
