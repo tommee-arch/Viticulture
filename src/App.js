@@ -153,6 +153,7 @@ export default function App() {
               ndviStats={ndviStats}
               ndwiSoilStats={ndwiSoilStats}
               vRequiredGeojson={vRequiredGeojson}
+              phenoData={phenoData}
               mlReadyData={mlReadyData}
               mlReadyLoading={mlReadyLoading}
               ensureMlReadyDataset={ensureMlReadyDataset}

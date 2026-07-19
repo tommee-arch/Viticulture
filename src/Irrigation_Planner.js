@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import { sumVRequiredByBlock } from './utils/vRequired';
+import { deriveGrowthStage } from './utils/growthStage';
 import './IrrigationPlanner.css';
 
 // Flask advisor API (see backend/README.md) - GEMINI_KEY lives there, never here.
@@ -18,30 +19,6 @@ const PRIORITY_LEVELS = [
 
 function priorityFor(ratio) {
   return PRIORITY_LEVELS.find(p => ratio >= p.min) || PRIORITY_LEVELS[PRIORITY_LEVELS.length - 1];
-}
-
-// Tokara_Pheno_Data.csv stores stage-transition dates as US-format strings (M/D/YYYY).
-function parseUsDate(str) {
-  if (!str) return null;
-  const [m, d, y] = String(str).split('/').map(Number);
-  if (!m || !d || !y) return null;
-  return new Date(y, m - 1, d);
-}
-
-const GROWTH_STAGES = ['Budbreak', 'Flowering', 'PreVeraison', 'Harvest'];
-
-// Which growth stage a block is in as of `recordDate`, from its phenology
-// record for the relevant season - each stage's transition date is checked
-// in chronological order, so the last one that's passed wins.
-function deriveGrowthStage(recordDate, pheno) {
-  if (!recordDate || !pheno) return 'Unknown';
-  const d = new Date(recordDate);
-  let stage = 'Pre-Budbreak';
-  GROWTH_STAGES.forEach(s => {
-    const stageDate = parseUsDate(pheno[s]);
-    if (stageDate && d >= stageDate) stage = s;
-  });
-  return stage;
 }
 
 // Managerial_Ks_Value.csv's "Harvest" stage column is spelled "Harvesting".
