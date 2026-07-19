@@ -240,7 +240,6 @@ const IrrigationPlanner = ({
       <div className="planner-header">
         <div className="header-tabs">
           <button className="tab active">Irrigation priority</button>
-          <button className="tab">All stages</button>
         </div>
         <div className="header-filters">
           <HelpTip text="Change which column ranks the blocks below." className="help-tip-block">

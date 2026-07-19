@@ -3,7 +3,6 @@ import Papa from 'papaparse';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import NowScreen from './NowScreen';
-import PredictiveScreen from './PredictiveScreen';
 import MapTab from './components/MapTab'; // Assuming you have a full-screen map component
 import IrrigationPlanner from './Irrigation_Planner';
 import './App.css';
@@ -13,7 +12,6 @@ const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localho
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Fields');
-  const [timeframe, setTimeframe] = useState('Now');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [fieldsData, setFieldsData] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
@@ -152,8 +150,6 @@ export default function App() {
       />
       <div className="main-content">
         <TopBar
-          timeframe={timeframe}
-          setTimeframe={setTimeframe}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed(v => !v)}
         />
@@ -172,7 +168,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'Fields' && timeframe === 'Now' && (
+          {activeTab === 'Fields' && (
             <NowScreen
               field={selectedField}
               fields={fieldsData}
@@ -192,10 +188,6 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'Fields' && timeframe === 'Predictive' && (
-            <PredictiveScreen field={selectedField} />
-          )}
-
           {activeTab === 'Irrigation Planner' && (
             <IrrigationPlanner
               fields={fieldsData}
@@ -210,13 +202,6 @@ export default function App() {
               mlReadyLoading={mlReadyLoading}
               ensureMlReadyDataset={ensureMlReadyDataset}
             />
-          )}
-
-          {activeTab === 'Fertigation Manager' && (
-            <div className="module-placeholder">
-              <h2>{activeTab} Workspace</h2>
-              <p>Select a field and input parameters to generate application rates.</p>
-            </div>
           )}
 
           {activeTab === 'Weather' && (

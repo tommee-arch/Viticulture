@@ -49,9 +49,6 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
               <HelpTip text="See every block ranked by irrigation priority, with a live map, chart and AI assistant." className="help-tip-block">
                 <button className={activeTab === 'Irrigation Planner' ? 'active' : ''} onClick={() => setActiveTab('Irrigation Planner')}>Irrigation Planner</button>
               </HelpTip>
-              <HelpTip text="Plan fertiliser application rates per block (coming soon)." className="help-tip-block">
-                <button className={activeTab === 'Fertigation Manager' ? 'active' : ''} onClick={() => setActiveTab('Fertigation Manager')}>Fertigation Manager</button>
-              </HelpTip>
             </div>
           )}
         </div>
