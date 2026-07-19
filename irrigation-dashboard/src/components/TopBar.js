@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import HelpTip from './HelpTip';
 import UploadDataPopup from './Upload_data_Popup';
 
-export default function TopBar({ timeframe, setTimeframe, sidebarCollapsed, onToggleSidebar }) {
+export default function TopBar({ sidebarCollapsed, onToggleSidebar }) {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const handlePrint = () => {
@@ -20,24 +20,6 @@ export default function TopBar({ timeframe, setTimeframe, sidebarCollapsed, onTo
             {sidebarCollapsed ? '☰' : '⟨'}
           </button>
         </HelpTip>
-        <div className="timeframe-controls">
-          <HelpTip text="View this block's most recently recorded data.">
-            <button
-              className={timeframe === 'Now' ? 'active' : ''}
-              onClick={() => setTimeframe('Now')}
-            >
-              Current Week
-            </button>
-          </HelpTip>
-          <HelpTip text="View a live 7-day irrigation forecast for this block.">
-            <button
-              className={timeframe === 'Predictive' ? 'active' : ''}
-              onClick={() => setTimeframe('Predictive')}
-            >
-              Next Week Forecast
-            </button>
-          </HelpTip>
-        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
