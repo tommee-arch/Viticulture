@@ -8,6 +8,7 @@ import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigat
 import { findClosestDate } from './utils/dateLookup';
 import { sumVRequiredByBlock } from './utils/vRequired';
 import { formatSeason, ndviToHealth } from './utils/fieldMetrics';
+import { deriveGrowthStage } from './utils/growthStage';
 
 // Stable reference for the 'forecast' mode, which has no backing dataset yet -
 // a fresh [] literal on every render would break the useMemo hooks below.
@@ -25,7 +26,7 @@ function environmentalStress(deficit, dataMode) {
   return { label: 'Low', className: 'stress-low' };
 }
 
-export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson, mlReadyData, mlReadyLoading, ensureMlReadyDataset }) {
+export default function NowScreen({ field, fields = [], setSelectedField, studyAreaGeojson, dailyIrrigation = [], weeklyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson, phenoData = [], mlReadyData, mlReadyLoading, ensureMlReadyDataset }) {
   const [dataMode, setDataMode] = useState('weekly');
   const [selectedDate, setSelectedDate] = useState(null);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -120,6 +121,12 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const currentSeason = formatSeason(currentRecord?.Season) || field.season || null;
   const plantHealth = ndviToHealth(currentNdvi);
   const stress = environmentalStress(currentRecord?.Net_Deficit_mm, dataMode);
+  // The block's phenology record for whichever season is currently in view -
+  // falls back to any record for the block if that exact season isn't found.
+  const currentPheno = phenoData.find(r => r['Block ID'] === field.BLOCK && r.season === currentSeason)
+    || phenoData.find(r => r['Block ID'] === field.BLOCK)
+    || null;
+  const growthStage = deriveGrowthStage(selectedDate, currentPheno);
 
   const handleDatePick = (dateStr) => {
     if (!dateStr || availableDates.length === 0) return;
@@ -242,8 +249,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                 <tr><td>Area</td><td>{Number(field.Area).toFixed(3)} ha</td></tr>
                 {/* New data from vineyard_STAR.csv */}
                 <tr><td>Season</td><td>{currentSeason || 'Current'}</td></tr>
-                <tr><td>Budbreak</td><td>{field.Budbreak || 'Pending'}</td></tr>
-                <tr><td>Flowering</td><td>{field.Flowering || 'Pending'}</td></tr>
+                <tr><td>Growth Stage</td><td>{growthStage}</td></tr>
                 <tr>
                   <td>Plant Health</td>
                   <td className={['Excellent', 'Good'].includes(plantHealth) ? 'status-good' : 'status-warning'}>
