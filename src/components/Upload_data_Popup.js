@@ -4,7 +4,18 @@ import './UploadDataPopup.css';
 // Same Flask backend as the Gemini advisor (see backend/README.md).
 const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localhost:5000';
 
+// Form-field keys the backend expects, each a single-band raster of
+// already-computed values (zonal-averaged per block) - except
+// "Sentinel imagery", a raw 4-band raster (B4, B3, B2, B8) the backend
+// computes NDWI from itself.
 const UPLOAD_FIELDS = ['ETa', 'ETo', 'Kc', 'NDVI', 'Sentinel imagery'];
+const FIELD_LABELS = {
+  'ETa': 'ETa',
+  'ETo': 'ETo',
+  'Kc': 'Kc',
+  'NDVI': 'NDVI',
+  'Sentinel imagery': 'Sentinel imagery (for NDWI - bands B4, B3, B2, B8)'
+};
 
 function DropZone({ label, file, onFileSelected }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -30,7 +41,7 @@ function DropZone({ label, file, onFileSelected }) {
 
   return (
     <div className="upload-dropzone-row">
-      <label className="upload-dropzone-label">{label}</label>
+      <label className="upload-dropzone-label">{FIELD_LABELS[label] || label}</label>
       <label
         className={`upload-dropzone ${isDragging ? 'dragging' : ''} ${file ? 'has-file' : ''}`}
         onDragOver={handleDragOver}
@@ -44,12 +55,15 @@ function DropZone({ label, file, onFileSelected }) {
   );
 }
 
-// Upload Daily Data modal - drops ETa/ETo/Kc/NDVI/Sentinel-2 files here, then
-// "Calculate" or "Upload" sends them to the backend to be turned into
-// per-block/per-date rows appended to Daily_Statistics.json.
+// Upload Daily Data modal - drops ETa/ETo/Kc/NDVI/Sentinel-2 rasters here
+// plus manually-entered Precipitation and Ks, then "Calculate" or "Upload"
+// sends it all to the backend, which computes Pheno_Net_mm and Volume_m3
+// and turns everything into per-block/per-date rows in Daily_Statistics.json.
 export default function UploadDataPopup({ isOpen, onClose }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [files, setFiles] = useState({});
+  const [precipMm, setPrecipMm] = useState('');
+  const [ks, setKs] = useState('');
   const [status, setStatus] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -65,8 +79,8 @@ export default function UploadDataPopup({ isOpen, onClose }) {
       setStatus({ type: 'error', message: 'Pick which date these files are for.' });
       return;
     }
-    if (!UPLOAD_FIELDS.some(label => files[label])) {
-      setStatus({ type: 'error', message: 'Add at least one file first.' });
+    if (!UPLOAD_FIELDS.some(label => files[label]) && !precipMm && !ks) {
+      setStatus({ type: 'error', message: 'Add at least one file, or a Precipitation/Ks value, first.' });
       return;
     }
 
@@ -76,6 +90,8 @@ export default function UploadDataPopup({ isOpen, onClose }) {
       const formData = new FormData();
       formData.append('mode', mode);
       formData.append('date', date);
+      if (precipMm !== '') formData.append('precip_mm', precipMm);
+      if (ks !== '') formData.append('ks', ks);
       UPLOAD_FIELDS.forEach(label => {
         if (files[label]) formData.append(label, files[label]);
       });
@@ -124,6 +140,32 @@ export default function UploadDataPopup({ isOpen, onClose }) {
         {UPLOAD_FIELDS.map(label => (
           <DropZone key={label} label={label} file={files[label]} onFileSelected={handleFileSelected} />
         ))}
+
+        <div className="upload-dropzone-row">
+          <label className="upload-dropzone-label" htmlFor="upload-precip">Precipitation (mm)</label>
+          <input
+            id="upload-precip"
+            type="number"
+            step="any"
+            placeholder="e.g. 5.5"
+            value={precipMm}
+            onChange={(e) => setPrecipMm(e.target.value)}
+            className="upload-date-input"
+          />
+        </div>
+
+        <div className="upload-dropzone-row">
+          <label className="upload-dropzone-label" htmlFor="upload-ks">Ks coefficient</label>
+          <input
+            id="upload-ks"
+            type="number"
+            step="any"
+            placeholder="e.g. 0.75"
+            value={ks}
+            onChange={(e) => setKs(e.target.value)}
+            className="upload-date-input"
+          />
+        </div>
 
         {status && <div className={`upload-status ${status.type}`}>{status.message}</div>}
 
