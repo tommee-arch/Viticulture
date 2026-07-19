@@ -194,12 +194,10 @@ export default function App() {
               studyAreaGeojson={studyAreaGeojson}
               selectedField={selectedField}
               setSelectedField={setSelectedField}
-              vRequiredGeojson={vRequiredGeojson}
               phenoData={phenoData}
-              ksValues={ksValues}
-              mlReadyData={mlReadyData}
-              mlReadyLoading={mlReadyLoading}
-              ensureMlReadyDataset={ensureMlReadyDataset}
+              dailyStatistics={dailyStatistics}
+              dailyStatisticsLoading={dailyStatisticsLoading}
+              ensureDailyStatistics={ensureDailyStatistics}
             />
           )}
 
