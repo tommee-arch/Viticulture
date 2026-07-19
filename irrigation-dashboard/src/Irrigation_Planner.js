@@ -4,6 +4,7 @@ import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import { sumVRequiredByBlock } from './utils/vRequired';
 import { deriveGrowthStage } from './utils/growthStage';
+import HelpTip from './components/HelpTip';
 import './IrrigationPlanner.css';
 
 // Flask advisor API (see backend/README.md) - GEMINI_KEY lives there, never here.
@@ -242,11 +243,13 @@ const IrrigationPlanner = ({
           <button className="tab">All stages</button>
         </div>
         <div className="header-filters">
-          <select className="sort-dropdown" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="deficit">Sort: Net Irrigation Req.</option>
-            <option value="volume">Sort: Required Volume</option>
-            <option value="priority">Sort: Priority</option>
-          </select>
+          <HelpTip text="Change which column ranks the blocks below." className="help-tip-block">
+            <select className="sort-dropdown" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="deficit">Sort: Net Irrigation Req.</option>
+              <option value="volume">Sort: Required Volume</option>
+              <option value="priority">Sort: Priority</option>
+            </select>
+          </HelpTip>
         </div>
       </div>
 
@@ -262,12 +265,12 @@ const IrrigationPlanner = ({
           <table className="priority-table">
             <thead>
               <tr>
-                <th>Block</th>
-                <th>Cultivar</th>
-                <th>Stage</th>
-                <th>Net Irrigation Req. (mm)</th>
-                <th>Required Volume</th>
-                <th>Priority</th>
+                <th><HelpTip text="Vineyard block identifier.">Block</HelpTip></th>
+                <th><HelpTip text="Grape variety planted in this block.">Cultivar</HelpTip></th>
+                <th><HelpTip text="Current growth stage of the vines in this block.">Stage</HelpTip></th>
+                <th><HelpTip text="How much water this block needs, adjusted for growth stage (Ks x deficit).">Net Irrigation Req. (mm)</HelpTip></th>
+                <th><HelpTip text="Total irrigation volume recommended for this block, adjusted for growth stage.">Required Volume</HelpTip></th>
+                <th><HelpTip text="How urgently this block needs irrigation compared to the rest of the vineyard.">Priority</HelpTip></th>
               </tr>
             </thead>
             <tbody>
@@ -311,7 +314,7 @@ const IrrigationPlanner = ({
 
         {/* 1. Map Widget - same vineyard block map as the Fields tab */}
         <div className="widget-card map-widget">
-          <h3>Field View{selectedField ? ` - ${selectedField.BLOCK}` : ''}</h3>
+          <h3><HelpTip text="Map of the selected block's boundary.">Field View{selectedField ? ` - ${selectedField.BLOCK}` : ''}</HelpTip></h3>
           <div className="map-inner">
             <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
@@ -331,7 +334,7 @@ const IrrigationPlanner = ({
 
         {/* 2. Graph Widget - real 7-day soil moisture trend for the selected block, as horizontal bars */}
         <div className="widget-card graph-widget">
-          <h3>Soil Moisture (7d){selectedField ? ` - ${selectedField.BLOCK}` : ''}</h3>
+          <h3><HelpTip text="Satellite-estimated soil moisture over the last 7 days.">Soil Moisture (7d){selectedField ? ` - ${selectedField.BLOCK}` : ''}</HelpTip></h3>
           {soilTrend.length > 0 ? (
             <>
               <div className="h-bar-graph">
@@ -368,7 +371,7 @@ const IrrigationPlanner = ({
         <div className="widget-card ai-widget">
           <div className="ai-header">
             <span className="ai-icon">✨</span>
-            <h3>Gemini Assistant</h3>
+            <h3><HelpTip text="Ask about any block's irrigation status - answered live using real data.">Gemini Assistant</HelpTip></h3>
           </div>
           <div className="chat-window" ref={chatWindowRef}>
             {chatHistory.map((msg, index) => (
@@ -378,13 +381,15 @@ const IrrigationPlanner = ({
             ))}
           </div>
           <form className="chat-input-area" onSubmit={handleSendMessage}>
-            <input
-              type="text"
-              placeholder="Ask about irrigation..."
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              disabled={isSending}
-            />
+            <HelpTip text="Try: 'How much water does this block need?' or 'Which block is highest priority?'" style={{ flexGrow: 1 }}>
+              <input
+                type="text"
+                placeholder="Ask about irrigation..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                disabled={isSending}
+              />
+            </HelpTip>
             <button type="submit" disabled={isSending}>{isSending ? '...' : 'Send'}</button>
           </form>
         </div>
