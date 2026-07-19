@@ -195,6 +195,7 @@ export default function App() {
               selectedField={selectedField}
               setSelectedField={setSelectedField}
               phenoData={phenoData}
+              ksValues={ksValues}
               dailyStatistics={dailyStatistics}
               dailyStatisticsLoading={dailyStatisticsLoading}
               ensureDailyStatistics={ensureDailyStatistics}
