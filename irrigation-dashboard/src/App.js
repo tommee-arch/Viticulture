@@ -194,7 +194,6 @@ export default function App() {
               studyAreaGeojson={studyAreaGeojson}
               selectedField={selectedField}
               setSelectedField={setSelectedField}
-              ndwiSoilStats={ndwiSoilStats}
               vRequiredGeojson={vRequiredGeojson}
               phenoData={phenoData}
               ksValues={ksValues}
