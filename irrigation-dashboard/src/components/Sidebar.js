@@ -80,7 +80,9 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
               className={selectedField?.BLOCK === field.BLOCK ? 'selected' : ''}
               onClick={() => {
                 setSelectedField(field);
-                if (activeTab !== 'Fields' && activeTab !== 'Irrigation Planner') {
+                // Home and Irrigation Planner both show the selected block right
+                // there on their own map - only jump to Fields from tabs that don't.
+                if (activeTab !== 'Fields' && activeTab !== 'Irrigation Planner' && activeTab !== 'Home') {
                   setActiveTab('Fields');
                 }
               }}
