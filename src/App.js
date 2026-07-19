@@ -20,6 +20,8 @@ export default function App() {
   const [ndviStats, setNdviStats] = useState(null);
   const [ndwiSoilStats, setNdwiSoilStats] = useState(null);
   const [vRequiredGeojson, setVRequiredGeojson] = useState(null);
+  const [phenoData, setPhenoData] = useState([]);
+  const [ksValues, setKsValues] = useState([]);
   // ml_ready_dataset.json is ~20MB (it's the source for the Kc/crop-coefficient
   // values used by the Forecast feature) - too big to fetch eagerly on every
   // load, so it's only fetched the first time something actually needs it.
@@ -69,6 +71,28 @@ export default function App() {
     .then(data => setVRequiredGeojson(data))
     .catch(error => console.error("Error loading irrigation volume required data:", error));
 
+    Papa.parse(`${process.env.PUBLIC_URL}/data/Tokara_Pheno_Data.csv`, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: (results) => setPhenoData((results.data || []).filter(row => row['Block ID'])),
+      error: (err) => console.error("Error loading phenology data:", err)
+    });
+
+    // Managerial_Ks_Value.csv has a title row before the real header
+    // ("Cultivars,Type of hydrology mech,Budbreak,Flowering,PreVeraison,Harvesting"),
+    // so it's fetched as text and that first line is dropped before parsing.
+    fetch(`${process.env.PUBLIC_URL}/data/Managerial_Ks_Value.csv`)
+      .then(response => response.text())
+      .then(text => {
+        const withoutTitleRow = text.split('\n').slice(1).join('\n');
+        Papa.parse(withoutTitleRow, {
+          header: true,
+          dynamicTyping: true,
+          complete: (results) => setKsValues((results.data || []).filter(row => row.Cultivars))
+        });
+      })
+      .catch(error => console.error("Error loading managerial Ks values:", error));
 
     Papa.parse(csvUrl, {
       download: true,
@@ -145,9 +169,13 @@ export default function App() {
               studyAreaGeojson={studyAreaGeojson}
               selectedField={selectedField}
               setSelectedField={setSelectedField}
-              weeklyIrrigation={weeklyIrrigation}
               ndwiSoilStats={ndwiSoilStats}
               vRequiredGeojson={vRequiredGeojson}
+              phenoData={phenoData}
+              ksValues={ksValues}
+              mlReadyData={mlReadyData}
+              mlReadyLoading={mlReadyLoading}
+              ensureMlReadyDataset={ensureMlReadyDataset}
             />
           )}
 
