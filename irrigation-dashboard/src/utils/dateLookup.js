@@ -8,3 +8,11 @@ export function findClosestDate(dates, target) {
     Math.abs(new Date(d).getTime() - targetTime) < Math.abs(new Date(closest).getTime() - targetTime) ? d : closest
   , dates[0]);
 }
+
+// Adds (or subtracts, with a negative value) whole days to a 'YYYY-MM-DD'
+// date string, returning the result in the same format.
+export function addDays(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}

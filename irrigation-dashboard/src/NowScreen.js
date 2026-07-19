@@ -4,8 +4,9 @@ import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import WeatherWidget from './components/WeatherWidget';
 import ForecastPanel from './components/ForecastPanel';
+import DeficitEtChart from './components/DeficitEtChart';
 import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from './utils/colorScale';
-import { findClosestDate } from './utils/dateLookup';
+import { findClosestDate, addDays } from './utils/dateLookup';
 import { sumVRequiredByBlock } from './utils/vRequired';
 import { formatSeason, ndviToHealth } from './utils/fieldMetrics';
 import { deriveGrowthStage } from './utils/growthStage';
@@ -55,6 +56,14 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   // which naturally hides the date slider/picker and shows '—' in the KPIs below.
   const activeSeries = dataMode === 'daily' ? dailyForBlock : dataMode === 'weekly' ? weeklyForBlock : EMPTY_ARRAY;
   const availableDates = useMemo(() => activeSeries.map(d => d.Date), [activeSeries]);
+
+  // Net Deficit/ET trend chart - the week either side of whatever date is selected.
+  const chartSeries = useMemo(() => {
+    if (!selectedDate) return EMPTY_ARRAY;
+    const from = addDays(selectedDate, -7);
+    const to = addDays(selectedDate, 7);
+    return activeSeries.filter(d => d.Date >= from && d.Date <= to);
+  }, [activeSeries, selectedDate]);
 
   // Every block's reading on the selected date, for the ET/Net Deficit map overlays.
   const activeFullSeries = dataMode === 'daily' ? (dailyStatistics || EMPTY_ARRAY) : dataMode === 'weekly' ? weeklyIrrigation : EMPTY_ARRAY;
@@ -438,6 +447,15 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
 
               <div className="card weather-card">
                 <WeatherWidget lat={lat} lng={lng} date={selectedDate} />
+              </div>
+
+              <div className="card">
+                <h3 style={{ marginTop: 0, marginBottom: '8px', fontSize: '1rem' }}>
+                  <HelpTip text="Net water deficit and evapotranspiration for this block, one week before and one week after the selected date.">
+                    Deficit &amp; Evapotranspiration Trend
+                  </HelpTip>
+                </h3>
+                <DeficitEtChart series={chartSeries} selectedDate={selectedDate} unit={dataMode} />
               </div>
             </>
           )}
