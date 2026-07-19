@@ -307,7 +307,7 @@ const IrrigationPlanner = ({
         </div>
       )}
 
-      {/* Priority Table - condensed to 4 visible rows, scroll for the rest */}
+      {/* Priority Table - fills the space above the map/chart/chat row, scrolls internally if needed */}
       <div className="table-card">
         <div className="priority-table-scroll">
           <table className="priority-table">
