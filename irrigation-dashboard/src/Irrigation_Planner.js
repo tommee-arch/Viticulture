@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
-import { sumVRequiredByBlock } from './utils/vRequired';
-import { deriveGrowthStage } from './utils/growthStage';
 import HelpTip from './components/HelpTip';
 import './IrrigationPlanner.css';
 
@@ -22,31 +20,15 @@ function priorityFor(ratio) {
   return PRIORITY_LEVELS.find(p => ratio >= p.min) || PRIORITY_LEVELS[PRIORITY_LEVELS.length - 1];
 }
 
-// Managerial_Ks_Value.csv's "Harvest" stage column is spelled "Harvesting".
-const STAGE_TO_KS_COLUMN = { Budbreak: 'Budbreak', Flowering: 'Flowering', PreVeraison: 'PreVeraison', Harvest: 'Harvesting' };
-
-// A block that hasn't reached Budbreak yet (or has no phenology data at all)
-// has no defined coefficient in the table - fall back to the Budbreak
-// column, the closest defined value, rather than leaving it blank.
-function ksFor(ksValues, cultivar, stage) {
-  const row = ksValues.find(r => r.Cultivars === cultivar);
-  if (!row) return null;
-  const column = STAGE_TO_KS_COLUMN[stage] || STAGE_TO_KS_COLUMN.Budbreak;
-  const value = row[column];
-  return typeof value === 'number' ? value : null;
-}
-
 const IrrigationPlanner = ({
   fields = [],
   studyAreaGeojson,
   selectedField,
   setSelectedField,
-  vRequiredGeojson,
   phenoData = [],
-  ksValues = [],
-  mlReadyData,
-  mlReadyLoading,
-  ensureMlReadyDataset
+  dailyStatistics,
+  dailyStatisticsLoading,
+  ensureDailyStatistics
 }) => {
   const [sortBy, setSortBy] = useState('deficit');
   const [chatInput, setChatInput] = useState('');
@@ -63,13 +45,11 @@ const IrrigationPlanner = ({
     if (el) el.scrollTop = el.scrollHeight;
   }, [chatHistory]);
 
-  // ml_ready_dataset.json is large and only fetched once something needs it -
+  // Daily_Statistics.json is large and only fetched once something needs it -
   // this table is one of those things.
   useEffect(() => {
-    ensureMlReadyDataset();
-  }, [ensureMlReadyDataset]);
-
-  const vRequiredByBlock = useMemo(() => sumVRequiredByBlock(vRequiredGeojson), [vRequiredGeojson]);
+    ensureDailyStatistics();
+  }, [ensureDailyStatistics]);
 
   // vineyard_STAR.csv has one row per block, but guard against dupes anyway.
   const uniqueBlocks = useMemo(() => {
@@ -105,31 +85,31 @@ const IrrigationPlanner = ({
     return map;
   }, [phenoData, uniqueBlocks, latestPhenoSeason]);
 
-  // Each block's most recent daily reading - the water deficit source.
-  const latestMlByBlock = useMemo(() => {
+  // Each block's most recent record in Daily_Statistics.json - Net
+  // Irrigation Req, Required Volume and Stage are all read straight from
+  // here now (Pheno_Net_mm, Volume_m3, Growth_Stage respectively).
+  const latestDailyByBlock = useMemo(() => {
     const map = {};
-    (mlReadyData || []).forEach(r => {
+    (dailyStatistics || []).forEach(r => {
       const cur = map[r.Block_ID];
       if (!cur || r.Date > cur.Date) map[r.Block_ID] = r;
     });
     return map;
-  }, [mlReadyData]);
+  }, [dailyStatistics]);
 
   const priorityRows = useMemo(() => {
     const withoutRank = uniqueBlocks.map(f => {
       const pheno = phenoByBlock[f.BLOCK];
-      const mlRecord = latestMlByBlock[f.BLOCK];
       const cultivar = pheno?.Cultivar || f.CULTIVAR;
-      const stage = deriveGrowthStage(mlRecord?.Date, pheno);
-      const ks = ksFor(ksValues, cultivar, stage);
-      const waterDeficit = mlRecord?.Net_Deficit_mm;
-      // Net irrigation requirement = Ks x water deficit.
-      const netIrrigationReq = (ks != null && waterDeficit != null) ? ks * waterDeficit : null;
-      // Required volume = recommended volume x Ks.
-      const requiredVolume = ks != null ? (vRequiredByBlock[f.BLOCK] ?? 0) * ks : null;
+      const dailyRecord = latestDailyByBlock[f.BLOCK];
+      const stage = dailyRecord?.Growth_Stage || 'Unknown';
+      const netIrrigationReq = dailyRecord?.Pheno_Net_mm ?? null;
+      const requiredVolume = dailyRecord?.Volume_m3 ?? null;
       return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume };
     });
 
+    // Priority ranking is unchanged for now - still just normalizes
+    // whatever Net Irrigation Req values come out above.
     const reqMax = Math.max(0, ...withoutRank.map(r => r.netIrrigationReq ?? 0));
     const rows = withoutRank.map(r => {
       const ratio = (r.netIrrigationReq != null && reqMax > 0) ? r.netIrrigationReq / reqMax : 0;
@@ -144,7 +124,7 @@ const IrrigationPlanner = ({
         PRIORITY_LEVELS.findIndex(p => p.label === a.priority) - PRIORITY_LEVELS.findIndex(p => p.label === b.priority)
     };
     return rows.sort(sorters[sortBy]);
-  }, [uniqueBlocks, phenoByBlock, latestMlByBlock, ksValues, vRequiredByBlock, sortBy]);
+  }, [uniqueBlocks, phenoByBlock, latestDailyByBlock, sortBy]);
 
   const topPriority = priorityRows[0] || null;
 
@@ -252,9 +232,9 @@ const IrrigationPlanner = ({
         </div>
       </div>
 
-      {mlReadyLoading && !mlReadyData && (
+      {dailyStatisticsLoading && !dailyStatistics && (
         <div className="table-card" style={{ padding: '12px 15px', fontSize: '0.85em', color: '#666' }}>
-          Loading irrigation model data...
+          Loading daily statistics...
         </div>
       )}
 
