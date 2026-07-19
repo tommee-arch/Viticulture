@@ -195,7 +195,7 @@
 }
 
 .h-bar-label {
-  width: 38px;
+  width: 52px;
   flex-shrink: 0;
   color: #666;
 }
@@ -223,7 +223,7 @@
 
 .graph-caption {
   font-size: 0.8em;
-  color: #e74c3c;
+  color: #666;
   text-align: center;
   margin-top: 10px;
 }

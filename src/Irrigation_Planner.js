@@ -41,7 +41,6 @@ const IrrigationPlanner = ({
   studyAreaGeojson,
   selectedField,
   setSelectedField,
-  ndwiSoilStats,
   vRequiredGeojson,
   phenoData = [],
   ksValues = [],
@@ -149,16 +148,17 @@ const IrrigationPlanner = ({
 
   const topPriority = priorityRows[0] || null;
 
-  // 7-day soil moisture trend for the selected block, from the NDWI/soil dataset.
-  const soilTrend = useMemo(() => {
-    if (!selectedField || !ndwiSoilStats?.dates) return [];
-    return ndwiSoilStats.dates
-      .slice(-7)
-      .map(date => ({ date, value: ndwiSoilStats.data?.[date]?.[selectedField.BLOCK]?.soil_moisture }))
-      .filter(d => Number.isFinite(d.value));
-  }, [ndwiSoilStats, selectedField]);
-
-  const latestSoilMoisture = soilTrend.length ? soilTrend[soilTrend.length - 1].value : null;
+  // How many blocks currently fall into each priority level - a
+  // vineyard-wide "how urgent is today" view, from the same priority
+  // ranking the table above already computes.
+  const priorityBreakdown = useMemo(() => {
+    return PRIORITY_LEVELS.map(level => ({
+      label: level.label,
+      color: level.color,
+      count: priorityRows.filter(r => r.priority === level.label).length
+    }));
+  }, [priorityRows]);
+  const breakdownMax = Math.max(1, ...priorityBreakdown.map(b => b.count));
 
   // Same highlight styling as the Fields tab map: selected block in yellow, others faint.
   const blockStyle = (feature) => {
@@ -331,39 +331,26 @@ const IrrigationPlanner = ({
           </div>
         </div>
 
-        {/* 2. Graph Widget - real 7-day soil moisture trend for the selected block, as horizontal bars */}
+        {/* 2. Graph Widget - vineyard-wide priority breakdown, from the table above */}
         <div className="widget-card graph-widget">
-          <h3><HelpTip text="Satellite-estimated soil moisture over the last 7 days.">Soil Moisture (7d){selectedField ? ` - ${selectedField.BLOCK}` : ''}</HelpTip></h3>
-          {soilTrend.length > 0 ? (
-            <>
-              <div className="h-bar-graph">
-                {soilTrend.map((point) => (
-                  <div key={point.date} className="h-bar-row">
-                    <span className="h-bar-label">{point.date.slice(5).replace('-', '/')}</span>
-                    <div className="h-bar-track">
-                      <div
-                        className="h-bar-fill"
-                        style={{
-                          width: `${Math.max(2, point.value)}%`,
-                          backgroundColor: point.value < 30 ? '#e74c3c' : '#009E60'
-                        }}
-                      ></div>
-                    </div>
-                    <span className="h-bar-value">{point.value.toFixed(0)}%</span>
-                  </div>
-                ))}
+          <h3><HelpTip text="How many blocks currently fall into each priority level.">Priority Breakdown</HelpTip></h3>
+          <div className="h-bar-graph">
+            {priorityBreakdown.map((level) => (
+              <div key={level.label} className="h-bar-row">
+                <span className="h-bar-label">{level.label}</span>
+                <div className="h-bar-track">
+                  <div
+                    className="h-bar-fill"
+                    style={{ width: `${(level.count / breakdownMax) * 100}%`, backgroundColor: level.color }}
+                  ></div>
+                </div>
+                <span className="h-bar-value">{level.count}</span>
               </div>
-              <p className="graph-caption">
-                {latestSoilMoisture < 30
-                  ? 'Depletion nearing critical threshold'
-                  : `Latest reading: ${latestSoilMoisture.toFixed(0)}%`}
-              </p>
-            </>
-          ) : (
-            <div className="map-placeholder">
-              <p>{selectedField ? 'No soil moisture data for this block yet' : 'Select a block to view its trend'}</p>
-            </div>
-          )}
+            ))}
+          </div>
+          <p className="graph-caption">
+            {priorityRows.length} block{priorityRows.length === 1 ? '' : 's'} total
+          </p>
         </div>
 
         {/* 3. Gemini AI Widget - answers are computed from the priority table above */}
