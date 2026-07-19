@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
@@ -52,8 +52,16 @@ const IrrigationPlanner = ({
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [chatHistory, setChatHistory] = useState([
-    { sender: 'gemini', text: 'Hello! I am your IRRIGUIDE assistant, backed by Gemini. Select a block and ask me about its deficit, ETa, stage or recommended volume.' }
+    { sender: 'gemini', text: 'Howzit! Your Smart Water Chommie here. Click on a block and ask me for the latest on its deficit, ETa, stage, or recommended volume.' }
   ]);
+  const chatWindowRef = useRef(null);
+
+  // Keep the newest message in view - the chat log scrolls internally
+  // rather than growing the whole card taller.
+  useEffect(() => {
+    const el = chatWindowRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatHistory]);
 
   // ml_ready_dataset.json is large and only fetched once something needs it -
   // this table is one of those things.
@@ -362,7 +370,7 @@ const IrrigationPlanner = ({
             <span className="ai-icon">✨</span>
             <h3>Gemini Assistant</h3>
           </div>
-          <div className="chat-window">
+          <div className="chat-window" ref={chatWindowRef}>
             {chatHistory.map((msg, index) => (
               <div key={index} className={`chat-bubble ${msg.sender}`}>
                 {msg.text}

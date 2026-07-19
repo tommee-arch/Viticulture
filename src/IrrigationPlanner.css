@@ -143,6 +143,10 @@
   padding: 15px;
   display: flex;
   flex-direction: column;
+  /* Without this, a flex/grid item defaults to min-height: auto, so a
+     growing scrollable child (the chat log) pushes the whole card taller
+     instead of shrinking to fit and scrolling. */
+  min-height: 0;
 }
 
 .widget-card h3 {
@@ -240,6 +244,7 @@
 
 .chat-window {
   flex-grow: 1;
+  min-height: 0;
   background: #fafafa;
   border: 1px solid #eee;
   border-radius: 4px;
