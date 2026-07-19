@@ -123,8 +123,8 @@
 
 .priority-badge.critical { background: #fadbd8; color: #c0392b; }
 .priority-badge.high { background: #fdebd0; color: #d35400; }
-.priority-badge.medium { background: #d5f5e3; color: #27ae60; }
-.priority-badge.low { background: #ebedef; color: #7f8c8d; }
+.priority-badge.moderate { background: #fdf3cf; color: #b7950b; }
+.priority-badge.low { background: #d5f5e3; color: #27ae60; }
 
 /* Bottom row: Map | Graph | AI Assistant, always a single line.
    Named distinctly from NowScreen's ".dashboard-grid" (App.css) to avoid

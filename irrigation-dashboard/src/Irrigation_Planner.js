@@ -9,15 +9,46 @@ import './IrrigationPlanner.css';
 // CRA bakes REACT_APP_* vars in at build time, so this has to be set before `npm run build`.
 const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localhost:5000';
 
+// PWDI (Plant Water Deficit Index) priority buckets - a HIGH PWDI means
+// CRITICAL water need. Buckets are relative (quartiles of today's PWDI
+// spread across the vineyard), not fixed PWDI cutoffs - see priorityRows.
 const PRIORITY_LEVELS = [
-  { key: 'critical', label: 'Critical', color: '#e74c3c', min: 0.75 },
-  { key: 'high', label: 'High', color: '#f39c12', min: 0.5 },
-  { key: 'medium', label: 'Medium', color: '#27ae60', min: 0.25 },
-  { key: 'low', label: 'Low', color: '#bdc3c7', min: 0 },
+  { key: 'critical', label: 'critical', color: '#e74c3c' },
+  { key: 'high', label: 'high', color: '#f39c12' },
+  { key: 'moderate', label: 'moderate', color: '#f1c40f' },
+  { key: 'low', label: 'low', color: '#27ae60' },
 ];
 
-function priorityFor(ratio) {
-  return PRIORITY_LEVELS.find(p => ratio >= p.min) || PRIORITY_LEVELS[PRIORITY_LEVELS.length - 1];
+// Growth stage -> water-demand score (1-5, 5 = highest demand). PreVeraison
+// is peak canopy/berry expansion; Harvest is when water is intentionally
+// withheld. Pre-Budbreak/Unknown aren't in the original spec (dormant vines
+// or missing phenology data for a few blocks) - treated as low demand (1),
+// same as Harvest, rather than left unscored.
+const GROWTH_STAGE_SCORE = {
+  'PreVeraison': 5,
+  'Flowering': 4,
+  'Budbreak': 2,
+  'Harvest': 1,
+  'Pre-Budbreak': 1,
+  'Unknown': 1
+};
+
+// Hydrology strategy (Managerial_Ks_Value.csv's "Type of hydrology mech")
+// -> water-sensitivity score (1-5). Isohydric vines close stomata early and
+// are more water-sensitive; Anisohydric vines tolerate more deficit.
+const GRAPE_TYPE_SCORE = {
+  'Isohydric': 5,
+  'Anisohydric-Isohydric': 3,
+  'Anisohydric': 1
+};
+
+// A cultivar not found in Managerial_Ks_Value.csv gets a neutral mid score
+// rather than being excluded from the index entirely.
+const DEFAULT_GRAPE_TYPE_SCORE = 3;
+
+function hydrologyTypeFor(ksValues, cultivar) {
+  const row = ksValues.find(r => r.Cultivars === cultivar);
+  return row ? row['Type of hydrology mech'] : null;
 }
 
 const IrrigationPlanner = ({
@@ -26,6 +57,7 @@ const IrrigationPlanner = ({
   selectedField,
   setSelectedField,
   phenoData = [],
+  ksValues = [],
   dailyStatistics,
   dailyStatisticsLoading,
   ensureDailyStatistics
@@ -105,26 +137,63 @@ const IrrigationPlanner = ({
       const stage = dailyRecord?.Growth_Stage || 'Unknown';
       const netIrrigationReq = dailyRecord?.Pheno_Net_mm ?? null;
       const requiredVolume = dailyRecord?.Volume_m3 ?? null;
-      return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume };
+      const hydrologyType = hydrologyTypeFor(ksValues, cultivar);
+      return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume, hydrologyType };
     });
 
-    // Priority ranking is unchanged for now - still just normalizes
-    // whatever Net Irrigation Req values come out above.
-    const reqMax = Math.max(0, ...withoutRank.map(r => r.netIrrigationReq ?? 0));
-    const rows = withoutRank.map(r => {
+    // --- PWDI (Plant Water Deficit Index) ---
+    // Each input scaled 1-5 (5 = highest water need), combined as:
+    // PWDI = 0.4 x Pheno_Net_mm score + 0.4 x growth-stage score + 0.2 x grape-type score.
+    const phenoValues = withoutRank.map(r => r.netIrrigationReq).filter(v => v != null);
+    const phenoMin = phenoValues.length ? Math.min(...phenoValues) : 0;
+    const phenoMax = phenoValues.length ? Math.max(...phenoValues) : 0;
+
+    const scored = withoutRank.map(r => {
+      let scaledPheno = null;
+      if (r.netIrrigationReq != null) {
+        scaledPheno = phenoMax === phenoMin
+          ? 3 // no spread across blocks today - neutral mid score rather than a divide-by-zero
+          : 1 + 4 * ((r.netIrrigationReq - phenoMin) / (phenoMax - phenoMin));
+      }
+      const scaledStage = GROWTH_STAGE_SCORE[r.stage] ?? 1;
+      const scaledGrapeType = GRAPE_TYPE_SCORE[r.hydrologyType] ?? DEFAULT_GRAPE_TYPE_SCORE;
+      const pwdi = scaledPheno == null
+        ? null
+        : (0.4 * scaledPheno) + (0.4 * scaledStage) + (0.2 * scaledGrapeType);
+      return { ...r, pwdi };
+    });
+
+    // Relative scoring: rank blocks with a PWDI and split into quartiles -
+    // "critical" is the top 25% of blocks by water need today, not a fixed
+    // PWDI cutoff (need is relative across the farm, not absolute).
+    const ranked = [...scored].filter(r => r.pwdi != null).sort((a, b) => b.pwdi - a.pwdi);
+    const bucketByBlock = {};
+    const n = ranked.length;
+    ranked.forEach((r, i) => {
+      const percentile = n > 1 ? i / (n - 1) : 0;
+      bucketByBlock[r.block] =
+        percentile <= 0.25 ? 'critical' :
+        percentile <= 0.5 ? 'high' :
+        percentile <= 0.75 ? 'moderate' : 'low';
+    });
+
+    // The Net Irrigation Req progress bar's width is its own magnitude
+    // relative to the highest block, independent of the PWDI priority bucket.
+    const reqMax = Math.max(0, ...scored.map(r => r.netIrrigationReq ?? 0));
+    const rows = scored.map(r => {
       const ratio = (r.netIrrigationReq != null && reqMax > 0) ? r.netIrrigationReq / reqMax : 0;
-      const priority = priorityFor(ratio);
-      return { ...r, ratio, priority: priority.label, color: priority.color };
+      const priorityKey = r.pwdi != null ? bucketByBlock[r.block] : 'low';
+      const priorityMeta = PRIORITY_LEVELS.find(p => p.key === priorityKey) || PRIORITY_LEVELS[PRIORITY_LEVELS.length - 1];
+      return { ...r, ratio, priority: priorityMeta.label, color: priorityMeta.color };
     });
 
     const sorters = {
       deficit: (a, b) => (b.netIrrigationReq ?? -1) - (a.netIrrigationReq ?? -1),
       volume: (a, b) => (b.requiredVolume ?? -1) - (a.requiredVolume ?? -1),
-      priority: (a, b) =>
-        PRIORITY_LEVELS.findIndex(p => p.label === a.priority) - PRIORITY_LEVELS.findIndex(p => p.label === b.priority)
+      priority: (a, b) => (b.pwdi ?? -1) - (a.pwdi ?? -1)
     };
     return rows.sort(sorters[sortBy]);
-  }, [uniqueBlocks, phenoByBlock, latestDailyByBlock, sortBy]);
+  }, [uniqueBlocks, phenoByBlock, latestDailyByBlock, ksValues, sortBy]);
 
   const topPriority = priorityRows[0] || null;
 
@@ -249,7 +318,7 @@ const IrrigationPlanner = ({
                 <th><HelpTip text="Current growth stage of the vines in this block.">Stage</HelpTip></th>
                 <th><HelpTip text="How much water this block needs, adjusted for growth stage (Ks x deficit).">Net Irrigation Req. (mm)</HelpTip></th>
                 <th><HelpTip text="Total irrigation volume recommended for this block, adjusted for growth stage.">Required Volume</HelpTip></th>
-                <th><HelpTip text="How urgently this block needs irrigation compared to the rest of the vineyard.">Priority</HelpTip></th>
+                <th><HelpTip text="Plant Water Deficit Index (PWDI) - combines water need, growth stage and grape variety, ranked relative to the rest of the vineyard.">Priority</HelpTip></th>
               </tr>
             </thead>
             <tbody>
