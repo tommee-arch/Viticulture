@@ -217,7 +217,18 @@ const IrrigationPlanner = ({
       volume: (a, b) => (b.requiredVolume ?? -1) - (a.requiredVolume ?? -1),
       priority: (a, b) => (b.pwdi ?? -1) - (a.pwdi ?? -1)
     };
-    return rows.sort(sorters[sortBy]);
+    // Blocks with an unknown growth stage always sort to the bottom of the
+    // list, regardless of sort mode - same reasoning as forcing them to
+    // "low" priority above, we can't reliably judge their water need, so
+    // ranking them by raw deficit/volume/PWDI would be misleading. Blocks on
+    // either side of that split still sort normally relative to each other.
+    const sortWithUnknownStageLast = (a, b) => {
+      const aUnknown = a.stage === 'Unknown';
+      const bUnknown = b.stage === 'Unknown';
+      if (aUnknown !== bUnknown) return aUnknown ? 1 : -1;
+      return sorters[sortBy](a, b);
+    };
+    return rows.sort(sortWithUnknownStageLast);
   }, [uniqueBlocks, latestDailyByBlock, ksValues, sortBy]);
 
   const topPriority = priorityRows[0] || null;
