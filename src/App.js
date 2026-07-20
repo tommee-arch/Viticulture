@@ -71,9 +71,12 @@ export default function App() {
     .then(data => setDailyIrrigation(data))
     .catch(error => console.error("Error loading daily irrigation data:", error));
 
-    fetch(`${process.env.PUBLIC_URL}/data/weekly_irrigation_final.json`)
+    // Weekly_accumulated.json is keyed by Week_Start/Week_End rather than a
+    // single Date - aliased to Date here so the rest of the app (date
+    // slider, closest-date lookups) can treat it the same as daily records.
+    fetch(`${process.env.PUBLIC_URL}/data/Weekly_accumulated.json`)
     .then(response => response.json())
-    .then(data => setWeeklyIrrigation(data))
+    .then(data => setWeeklyIrrigation(data.map(r => ({ ...r, Date: r.Week_Start }))))
     .catch(error => console.error("Error loading weekly irrigation data:", error));
 
     fetch(`${process.env.PUBLIC_URL}/data/ndvi_stats.json`)
