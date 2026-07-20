@@ -64,7 +64,7 @@ function DropZone({ label, file, onFileSelected }) {
 // Upload Daily Data modal - drops ETa/ETo/Kc/NDVI/Sentinel-2 rasters here
 // plus manually-entered Precipitation and Ks, then "Calculate" or "Upload"
 // sends it all to the backend, which computes Pheno_Net_mm and Volume_m3
-// and turns everything into per-block/per-date rows in Daily_Statistics.json.
+// and turns everything into per-block/per-date rows in Full_final_deduped.json.
 export default function UploadDataPopup({ isOpen, onClose }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [files, setFiles] = useState({});
@@ -136,7 +136,7 @@ export default function UploadDataPopup({ isOpen, onClose }) {
       setStatus({
         type: 'success',
         message: mode === 'upload'
-          ? `Saved ${data.blocks_updated} block(s) for ${date} to Daily_Statistics.json.`
+          ? `Saved ${data.blocks_updated} block(s) for ${date} to Full_final_deduped.json.`
           : `Calculated ${data.blocks_updated} block(s) for ${date} (not saved).`
       });
     } catch (err) {

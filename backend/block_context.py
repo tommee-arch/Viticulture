@@ -3,7 +3,7 @@ them into the per-block context the Gemini advisor answers questions from.
 
 The PWDI/priority/volume numbers here are computed exactly the same way as
 the Irrigation Planner table in the frontend (irrigation-dashboard/src/
-Irrigation_Planner.js) - same Daily_Statistics.json latest-record-per-block
+Irrigation_Planner.js) - same Full_final_deduped.json latest-record-per-block
 source, same Managerial_Ks_Value.csv hydrology lookup, same 1-5 scaling and
 quartile bucketing - so the chatbot's answers match what's on screen.
 
@@ -17,7 +17,7 @@ import pandas as pd
 import requests
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-DAILY_STATS_PATH = os.path.join(DATA_DIR, "Daily_Statistics.json")
+DAILY_STATS_PATH = os.path.join(DATA_DIR, "Full_final_deduped.json")
 MANAGERIAL_KS_PATH = os.path.join(DATA_DIR, "Managerial_Ks_Value.csv")
 
 # Growth stage -> water-demand score (1-5, 5 = highest demand). Mirrors
@@ -61,7 +61,7 @@ class BlockContext:
 class BlockDataStore:
     """Loads once at process start; the underlying datasets are static.
 
-    NOTE: Daily_Statistics.json is also the file /api/upload-daily-data
+    NOTE: Full_final_deduped.json is also the file /api/upload-daily-data
     mutates (see daily_stats_store.py). This store reads its own snapshot
     at startup, so an upload landing while this process is already running
     won't be reflected here until the process restarts - same

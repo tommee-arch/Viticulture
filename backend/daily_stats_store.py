@@ -1,6 +1,6 @@
 """Ingests newly uploaded ETa/ETo/Kc/NDVI rasters, a raw Sentinel-2 band
 raster (for NDWI), plus manually-entered Precipitation and Ks, turns them
-into per-block rows, and upserts them into Daily_Statistics.json.
+into per-block rows, and upserts them into Full_final_deduped.json.
 
 IMPORTANT CAVEAT: this was built without any real sample raster to test
 against (none were available) - the zonal-statistics logic follows
@@ -22,7 +22,7 @@ import pandas as pd
 from block_context import store as block_store
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-DAILY_STATS_PATH = os.path.join(DATA_DIR, "Daily_Statistics.json")
+DAILY_STATS_PATH = os.path.join(DATA_DIR, "Full_final_deduped.json")
 BLOCKS_PATH = os.path.join(DATA_DIR, "Tokara_Study_Area.json")
 PHENO_PATH = os.path.join(DATA_DIR, "Tokara_Pheno_Data.csv")
 
@@ -48,7 +48,7 @@ def _season_label(record_date: date) -> str:
 
 
 def _season_number(season_label: str) -> int:
-    """'2024/2025' -> 20242025, matching Daily_Statistics.json's Season field."""
+    """'2024/2025' -> 20242025, matching Full_final_deduped.json's Season field."""
     start, end = season_label.split("/")
     return int(f"{start}{end}")
 

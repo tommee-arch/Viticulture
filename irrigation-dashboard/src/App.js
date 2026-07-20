@@ -41,12 +41,13 @@ export default function App() {
       .finally(() => setMlReadyLoading(false));
   }, [mlReadyData, mlReadyLoading]);
 
-  // Daily_Statistics.json is ~57MB (the enriched per-block/per-day dataset -
-  // ETa, Net Deficit, Net Irrigation, NDVI, NDWI, Growth Stage, Season) -
-  // only fetched the first time the Fields tab's Daily mode is opened.
-  // The backend keeps the live copy (uploads update it there), so that's
-  // tried first; the static bundled copy is a fallback if the backend is
-  // unreachable (e.g. not running locally, or asleep on Render's free tier).
+  // Full_final_deduped.json is the enriched per-block/per-day dataset -
+  // ETa, Net Deficit, Irrigation Net, Volume, NDVI, NDWI, Ks_current_mean,
+  // Growth Stage, Season - only fetched the first time the Fields tab's
+  // Daily mode is opened. The backend keeps the live copy (uploads update
+  // it there), so that's tried first; the static bundled copy is a
+  // fallback if the backend is unreachable (e.g. not running locally, or
+  // asleep on Render's free tier).
   const [dailyStatistics, setDailyStatistics] = useState(null);
   const [dailyStatisticsLoading, setDailyStatisticsLoading] = useState(false);
   const ensureDailyStatistics = useCallback(() => {
@@ -60,7 +61,7 @@ export default function App() {
       .then(data => setDailyStatistics(data))
       .catch(error => {
         console.error("Backend daily statistics unavailable, falling back to the static file:", error);
-        return fetch(`${process.env.PUBLIC_URL}/data/Daily_Statistics.json`)
+        return fetch(`${process.env.PUBLIC_URL}/data/Full_final_deduped.json`)
           .then(response => response.json())
           .then(data => setDailyStatistics(data))
           .catch(fallbackError => console.error("Error loading daily statistics dataset:", fallbackError));

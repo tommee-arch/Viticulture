@@ -12,9 +12,10 @@ Planner table (see `block_context.py`), plus a live Open-Meteo forecast.
   returns `{ "answer": "...", "context": {...} }`. `history` is the frontend's
   chat log, `[{ "sender": "user" | "gemini", "text": "..." }, ...]`.
 - `GET /api/health` - `{ "status": "ok", "gemini_configured": true|false }`.
-- `GET /api/daily-statistics` - the live `Daily_Statistics.json` (per-block,
-  per-day ETa/Net Deficit/Net Irrigation/NDVI/NDWI/Growth Stage/Season).
-  Frontend falls back to its bundled static copy if this is unreachable.
+- `GET /api/daily-statistics` - the live `Full_final_deduped.json` (per-block,
+  per-day ETa/Net Deficit/Irrigation Net/Volume/NDVI/NDWI/Ks_current_mean/
+  Growth Stage/Season). Frontend falls back to its bundled static copy if
+  this is unreachable.
 - `POST /api/upload-daily-data` - multipart form:
   - `date` (YYYY-MM-DD) - required.
   - `mode` - `calculate` to preview without saving, or `upload` to persist.
@@ -96,12 +97,12 @@ Railway and Fly.io work the same way (Python buildpack + `Procfile`).
 irrigation readings, required irrigation volumes, block boundaries,
 phenology dates, per-cultivar Ks/hydrology values, and the daily statistics
 dataset). Re-copy the relevant file(s) here if the source data is ever
-regenerated - except `Daily_Statistics.json`, which this backend now owns
+regenerated - except `Full_final_deduped.json`, which this backend now owns
 and mutates via `/api/upload-daily-data`; don't overwrite the backend's copy
 with the frontend's static one without checking which has newer uploads.
 
 `block_context.py` (used by `/api/ask`) reads its own snapshot of
-`Daily_Statistics.json` at process start to compute each block's PWDI/
+`Full_final_deduped.json` at process start to compute each block's PWDI/
 priority/volume - if an upload lands while the process is already running,
 the advisor won't see it until the process restarts (same restart caveat as
 above).
