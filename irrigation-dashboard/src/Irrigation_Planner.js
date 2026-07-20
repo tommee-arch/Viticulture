@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { MapContainer, TileLayer, GeoJSON, LayersControl } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
@@ -88,6 +89,7 @@ const IrrigationPlanner = ({
   ensureDailyStatistics
 }) => {
   const [sortBy, setSortBy] = useState('deficit');
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [chatHistory, setChatHistory] = useState([
@@ -384,12 +386,34 @@ const IrrigationPlanner = ({
       </div>
 
       {/* Bottom row: Map, Graph and AI Assistant side by side on one line */}
-      <div className="planner-dashboard-grid">
+      <div
+        className="planner-dashboard-grid"
+        style={{
+          // minmax() keeps the graph/chat columns from squeezing so thin
+          // their own content (bars, chat bubbles) becomes unreadable.
+          gridTemplateColumns: mapExpanded ? 'minmax(0, 2fr) minmax(170px, 0.5fr) minmax(220px, 0.7fr)' : '1.1fr 0.8fr 1.3fr',
+          height: mapExpanded ? '650px' : '380px',
+          transition: 'grid-template-columns 0.3s ease, height 0.3s ease'
+        }}
+      >
 
         {/* 1. Map Widget - same vineyard block map as the Fields tab */}
         <div className="widget-card map-widget">
           <h3><HelpTip text="Map of the selected block's boundary.">Field View{selectedField ? ` - ${selectedField.BLOCK}` : ''}</HelpTip></h3>
-          <div className="map-inner">
+          <div className="map-inner" style={{ position: 'relative' }}>
+            <HelpTip
+              text={mapExpanded ? 'Shrink the map back down.' : 'Make the map bigger and the other panels smaller.'}
+              style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000 }}
+            >
+              <button
+                type="button"
+                onClick={() => setMapExpanded(v => !v)}
+                aria-label={mapExpanded ? 'Collapse map' : 'Expand map'}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', background: 'white', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+              >
+                {mapExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+            </HelpTip>
             <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
               <LayersControl position="topleft">
                 <LayersControl.BaseLayer checked name="Satellite Imagery (Esri)">
@@ -416,7 +440,7 @@ const IrrigationPlanner = ({
               <OrderedOverlaysControl order={['Vineyard Blocks', 'Most recent Sat Imagery', 'Net Irrigation Required']} />
 
               <MapFlyTo selectedField={selectedField} />
-              <MapResizeHandler trigger={selectedField?.BLOCK} />
+              <MapResizeHandler trigger={`${selectedField?.BLOCK}-${mapExpanded}`} />
             </MapContainer>
           </div>
         </div>
