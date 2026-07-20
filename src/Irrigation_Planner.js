@@ -46,6 +46,10 @@ const GRAPE_TYPE_SCORE = {
 // rather than being excluded from the index entirely.
 const DEFAULT_GRAPE_TYPE_SCORE = 3;
 
+// Drip emitter output rate (m³/hour) - Irrigation Time = Required Volume / this.
+// Frontend-only figure, not part of any dataset.
+const DRIP_RATE_M3_PER_HOUR = 0.0015;
+
 function hydrologyTypeFor(ksValues, cultivar) {
   const row = ksValues.find(r => r.Cultivars === cultivar);
   return row ? row['Type of hydrology mech'] : null;
@@ -56,7 +60,6 @@ const IrrigationPlanner = ({
   studyAreaGeojson,
   selectedField,
   setSelectedField,
-  phenoData = [],
   ksValues = [],
   dailyStatistics,
   dailyStatisticsLoading,
@@ -93,33 +96,10 @@ const IrrigationPlanner = ({
     });
   }, [fields]);
 
-  // Most recent season present in the phenology dataset.
-  const latestPhenoSeason = useMemo(() => {
-    const seasons = phenoData.map(r => r.season).filter(Boolean).sort();
-    return seasons.length ? seasons[seasons.length - 1] : null;
-  }, [phenoData]);
-
-  // Each block's phenology record for the latest season - falling back to
-  // that block's own most recent season if it has no record for
-  // latestPhenoSeason (a few blocks are missing their newest season's data).
-  const phenoByBlock = useMemo(() => {
-    const map = {};
-    uniqueBlocks.forEach(f => {
-      const blockRows = phenoData.filter(r => r['Block ID'] === f.BLOCK);
-      const exact = blockRows.find(r => r.season === latestPhenoSeason);
-      if (exact) {
-        map[f.BLOCK] = exact;
-        return;
-      }
-      const withSeason = blockRows.filter(r => r.season).sort((a, b) => String(a.season).localeCompare(String(b.season)));
-      map[f.BLOCK] = withSeason[withSeason.length - 1] || blockRows[0] || null;
-    });
-    return map;
-  }, [phenoData, uniqueBlocks, latestPhenoSeason]);
-
   // Each block's most recent record in Full_final_deduped.json - Net
-  // Irrigation Req, Required Volume and Stage are all read straight from
-  // here now (Pheno_Net_mm, Volume_m3, Growth_Stage respectively).
+  // Irrigation Req, Required Volume, Stage and Cultivar are all read
+  // straight from here now (Irrigation_net, Volume_m3, Growth_Stage,
+  // Cultivar respectively).
   const latestDailyByBlock = useMemo(() => {
     const map = {};
     (dailyStatistics || []).forEach(r => {
@@ -131,35 +111,37 @@ const IrrigationPlanner = ({
 
   const priorityRows = useMemo(() => {
     const withoutRank = uniqueBlocks.map(f => {
-      const pheno = phenoByBlock[f.BLOCK];
-      const cultivar = pheno?.Cultivar || f.CULTIVAR;
       const dailyRecord = latestDailyByBlock[f.BLOCK];
+      const cultivar = dailyRecord?.Cultivar || f.CULTIVAR;
       const stage = dailyRecord?.Growth_Stage || 'Unknown';
-      const netIrrigationReq = dailyRecord?.Pheno_Net_mm ?? null;
+      const netIrrigationReq = dailyRecord?.Irrigation_net ?? null;
       const requiredVolume = dailyRecord?.Volume_m3 ?? null;
+      // Irrigation Time (hours) = Required Volume (m³) / drip rate (m³/hour) -
+      // frontend-only figure, not part of the dataset.
+      const irrigationTimeHours = requiredVolume != null ? requiredVolume / DRIP_RATE_M3_PER_HOUR : null;
       const hydrologyType = hydrologyTypeFor(ksValues, cultivar);
-      return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume, hydrologyType };
+      return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume, irrigationTimeHours, hydrologyType };
     });
 
     // --- PWDI (Plant Water Deficit Index) ---
     // Each input scaled 1-5 (5 = highest water need), combined as:
-    // PWDI = 0.4 x Pheno_Net_mm score + 0.4 x growth-stage score + 0.2 x grape-type score.
-    const phenoValues = withoutRank.map(r => r.netIrrigationReq).filter(v => v != null);
-    const phenoMin = phenoValues.length ? Math.min(...phenoValues) : 0;
-    const phenoMax = phenoValues.length ? Math.max(...phenoValues) : 0;
+    // PWDI = 0.4 x Irrigation_net score + 0.4 x growth-stage score + 0.2 x grape-type score.
+    const irrigationNetValues = withoutRank.map(r => r.netIrrigationReq).filter(v => v != null);
+    const irrigationNetMin = irrigationNetValues.length ? Math.min(...irrigationNetValues) : 0;
+    const irrigationNetMax = irrigationNetValues.length ? Math.max(...irrigationNetValues) : 0;
 
     const scored = withoutRank.map(r => {
-      let scaledPheno = null;
+      let scaledIrrigationNet = null;
       if (r.netIrrigationReq != null) {
-        scaledPheno = phenoMax === phenoMin
+        scaledIrrigationNet = irrigationNetMax === irrigationNetMin
           ? 3 // no spread across blocks today - neutral mid score rather than a divide-by-zero
-          : 1 + 4 * ((r.netIrrigationReq - phenoMin) / (phenoMax - phenoMin));
+          : 1 + 4 * ((r.netIrrigationReq - irrigationNetMin) / (irrigationNetMax - irrigationNetMin));
       }
       const scaledStage = GROWTH_STAGE_SCORE[r.stage] ?? 1;
       const scaledGrapeType = GRAPE_TYPE_SCORE[r.hydrologyType] ?? DEFAULT_GRAPE_TYPE_SCORE;
-      const pwdi = scaledPheno == null
+      const pwdi = scaledIrrigationNet == null
         ? null
-        : (0.4 * scaledPheno) + (0.4 * scaledStage) + (0.2 * scaledGrapeType);
+        : (0.4 * scaledIrrigationNet) + (0.4 * scaledStage) + (0.2 * scaledGrapeType);
       return { ...r, pwdi };
     });
 
@@ -193,7 +175,7 @@ const IrrigationPlanner = ({
       priority: (a, b) => (b.pwdi ?? -1) - (a.pwdi ?? -1)
     };
     return rows.sort(sorters[sortBy]);
-  }, [uniqueBlocks, phenoByBlock, latestDailyByBlock, ksValues, sortBy]);
+  }, [uniqueBlocks, latestDailyByBlock, ksValues, sortBy]);
 
   const topPriority = priorityRows[0] || null;
 
@@ -316,8 +298,9 @@ const IrrigationPlanner = ({
                 <th><HelpTip text="Vineyard block identifier.">Block</HelpTip></th>
                 <th><HelpTip text="Grape variety planted in this block.">Cultivar</HelpTip></th>
                 <th><HelpTip text="Current growth stage of the vines in this block.">Stage</HelpTip></th>
-                <th><HelpTip text="How much water this block needs, adjusted for growth stage (Ks x deficit).">Net Irrigation Req. (mm)</HelpTip></th>
+                <th><HelpTip text="How much water this block needs, from the latest Irrigation_net reading.">Net Irrigation Req. (mm)</HelpTip></th>
                 <th><HelpTip text="Total irrigation volume recommended for this block, adjusted for growth stage.">Required Volume</HelpTip></th>
+                <th><HelpTip text={`How long the drip system needs to run to deliver the Required Volume, at a drip rate of ${DRIP_RATE_M3_PER_HOUR} m³/hour.`}>Irrigation Time</HelpTip></th>
                 <th><HelpTip text="Plant Water Deficit Index (PWDI) - combines water need, growth stage and grape variety, ranked relative to the rest of the vineyard.">Priority</HelpTip></th>
               </tr>
             </thead>
@@ -345,6 +328,7 @@ const IrrigationPlanner = ({
                     </div>
                   </td>
                   <td><strong>{row.requiredVolume != null ? `${Math.round(row.requiredVolume).toLocaleString()} m³` : '—'}</strong></td>
+                  <td>{row.irrigationTimeHours != null ? `${row.irrigationTimeHours.toFixed(1)} h` : '—'}</td>
                   <td>
                     <span className={`priority-badge ${row.priority.toLowerCase()}`}>
                       {row.priority}
