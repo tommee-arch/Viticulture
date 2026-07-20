@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
@@ -308,13 +309,17 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
               ))}
             </div>
 
-            <HelpTip text="Make the map bigger and the stats smaller.">
+            <HelpTip
+              text={mapExpanded ? 'Shrink the map back down.' : 'Make the map bigger and the stats smaller.'}
+              style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000 }}
+            >
               <button
                 type="button"
                 onClick={() => setMapExpanded(v => !v)}
-                style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000, background: 'white', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+                aria-label={mapExpanded ? 'Collapse map' : 'Expand map'}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', background: 'white', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
               >
-                {mapExpanded ? 'Collapse Map' : 'Expand Map'}
+                {mapExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
             </HelpTip>
 
