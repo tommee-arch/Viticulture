@@ -4,6 +4,7 @@ import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import HelpTip from './components/HelpTip';
 import TifOverlays from './components/TifOverlays';
+import OrderedOverlaysControl from './components/OrderedOverlaysControl';
 import './IrrigationPlanner.css';
 
 // Flask advisor API (see backend/README.md) - GEMINI_KEY lives there, never here.
@@ -13,11 +14,14 @@ const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localho
 // PWDI (Plant Water Deficit Index) priority buckets - a HIGH PWDI means
 // CRITICAL water need. Buckets are relative (quartiles of today's PWDI
 // spread across the vineyard), not fixed PWDI cutoffs - see priorityRows.
+// Colors are from the Okabe-Ito colorblind-safe palette - blue for "low"
+// rather than the conventional green, so it stays distinguishable from
+// "critical" under red-green color blindness.
 const PRIORITY_LEVELS = [
-  { key: 'critical', label: 'critical', color: '#e74c3c' },
-  { key: 'high', label: 'high', color: '#f39c12' },
-  { key: 'moderate', label: 'moderate', color: '#f1c40f' },
-  { key: 'low', label: 'low', color: '#27ae60' },
+  { key: 'critical', label: 'critical', color: '#d55e00' },
+  { key: 'high', label: 'high', color: '#e69f00' },
+  { key: 'moderate', label: 'moderate', color: '#f0e442' },
+  { key: 'low', label: 'low', color: '#0072b2' },
 ];
 
 // Growth stage -> water-demand score (1-5, 5 = highest demand). PreVeraison
@@ -90,6 +94,7 @@ const IrrigationPlanner = ({
     { sender: 'gemini', text: 'Howzit! Your Smart Water Chommie here. Click on a block and ask me for the latest on its deficit, ETa, stage, or recommended volume.' }
   ]);
   const chatWindowRef = useRef(null);
+  const tableScrollRef = useRef(null);
 
   // Keep the newest message in view - the chat log scrolls internally
   // rather than growing the whole card taller.
@@ -97,6 +102,14 @@ const IrrigationPlanner = ({
     const el = chatWindowRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [chatHistory]);
+
+  // Whenever a block is selected - whether from this table, the map, or the
+  // sidebar - scroll its row into view here too.
+  useEffect(() => {
+    if (!selectedField || !tableScrollRef.current) return;
+    const el = tableScrollRef.current.querySelector(`[data-block="${selectedField.BLOCK}"]`);
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedField]);
 
   // Full_final_deduped.json is large and only fetched once something needs it -
   // this table is one of those things.
@@ -319,7 +332,7 @@ const IrrigationPlanner = ({
 
       {/* Priority Table - fills the space above the map/chart/chat row, scrolls internally if needed */}
       <div className="table-card">
-        <div className="priority-table-scroll">
+        <div className="priority-table-scroll" ref={tableScrollRef}>
           <table className="priority-table">
             <thead>
               <tr>
@@ -336,6 +349,7 @@ const IrrigationPlanner = ({
               {priorityRows.map((row) => (
                 <tr
                   key={row.block}
+                  data-block={row.block}
                   className={selectedField?.BLOCK === row.block ? 'selected-row' : ''}
                   style={{ cursor: 'pointer' }}
                   onClick={() => {
@@ -396,6 +410,11 @@ const IrrigationPlanner = ({
                   )}
                 </LayersControl.Overlay>
               </LayersControl>
+
+              {/* Forces the overlay checkboxes into a fixed order (see component
+                  for why this can't just be JSX declaration order) */}
+              <OrderedOverlaysControl order={['Vineyard Blocks', 'Most recent Sat Imagery', 'Net Irrigation Required']} />
+
               <MapFlyTo selectedField={selectedField} />
               <MapResizeHandler trigger={selectedField?.BLOCK} />
             </MapContainer>

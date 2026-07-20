@@ -1,16 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import logo from '../sprinklers.png';
 import HelpTip from './HelpTip';
 import { areaKm2ToHa } from '../utils/fieldMetrics';
 export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedField, setSelectedField, collapsed }) {
   const [isDecisionSupportOpen, setIsDecisionSupportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const listRef = useRef(null);
 
   // Updated to search by either BLOCK or CULTIVAR
   const filteredFields = fieldsData.filter(f =>
     (f.BLOCK && f.BLOCK.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (f.CULTIVAR && f.CULTIVAR.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  // Whenever a block is selected - whether from this list, the map, or the
+  // Irrigation Planner - scroll it into view here too, so the sidebar always
+  // reflects and reveals the current selection.
+  useEffect(() => {
+    if (!selectedField || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-block="${selectedField.BLOCK}"]`);
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedField]);
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -66,10 +76,11 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
             />
           </HelpTip>
         </div>
-        <ul className="field-list">
+        <ul className="field-list" ref={listRef}>
           {filteredFields.map((field, idx) => (
-            <li 
-              key={idx} 
+            <li
+              key={idx}
+              data-block={field.BLOCK}
               // Updated to check matching BLOCK instead of FieldName
               className={selectedField?.BLOCK === field.BLOCK ? 'selected' : ''}
               onClick={() => {
