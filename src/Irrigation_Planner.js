@@ -46,9 +46,26 @@ const GRAPE_TYPE_SCORE = {
 // rather than being excluded from the index entirely.
 const DEFAULT_GRAPE_TYPE_SCORE = 3;
 
-// Drip emitter output rate (m³/hour) - Irrigation Time = Required Volume / this.
-// Frontend-only figure, not part of any dataset.
-const DRIP_RATE_M3_PER_HOUR = 0.0015;
+// --- Irrigation Time (frontend-only, not part of any dataset) ---
+// Follows the "Drip Irrigation Fundamentals" method (Univ. of Arkansas
+// Division of Agriculture, FSA6174): Drip Rate (in/hour) = (emitter flow
+// rate (gph) x 231.1) / (emitter spacing (in) x bed width (in)) - i.e. the
+// emitter's output spread over the ground area it wets, giving a depth
+// applied per hour. The metric equivalent (1 L over 1 m2 = 1 mm of depth)
+// is simpler: Application Rate (mm/hour) = emitter flow rate (L/hour) /
+// (emitter spacing (m) x row spacing (m)).
+//
+// We don't have Tokara's actual emitter/spacing spec, so these are generic
+// values typical of a vineyard drip system - adjust here if the real specs
+// become available:
+//   - 2.3 L/hour per emitter (a common standard inline dripper rating)
+//   - emitters spaced 0.5m apart along the row (roughly one per vine)
+//   - rows spaced 2.4m apart (typical vineyard inter-row spacing)
+const DRIP_EMITTER_FLOW_RATE_L_PER_HOUR = 2.3;
+const DRIP_EMITTER_SPACING_M = 0.5;
+const DRIP_ROW_SPACING_M = 2.4;
+const DRIP_APPLICATION_RATE_MM_PER_HOUR =
+  DRIP_EMITTER_FLOW_RATE_L_PER_HOUR / (DRIP_EMITTER_SPACING_M * DRIP_ROW_SPACING_M);
 
 function hydrologyTypeFor(ksValues, cultivar) {
   const row = ksValues.find(r => r.Cultivars === cultivar);
@@ -116,9 +133,11 @@ const IrrigationPlanner = ({
       const stage = dailyRecord?.Growth_Stage || 'Unknown';
       const netIrrigationReq = dailyRecord?.Irrigation_net ?? null;
       const requiredVolume = dailyRecord?.Volume_m3 ?? null;
-      // Irrigation Time (hours) = Required Volume (m³) / drip rate (m³/hour) -
-      // frontend-only figure, not part of the dataset.
-      const irrigationTimeHours = requiredVolume != null ? requiredVolume / DRIP_RATE_M3_PER_HOUR : null;
+      // Irrigation Time (hours) = depth needed (mm) / drip application rate
+      // (mm/hour) - a surplus day (netIrrigationReq <= 0) needs no run time.
+      const irrigationTimeHours = netIrrigationReq != null
+        ? Math.max(0, netIrrigationReq) / DRIP_APPLICATION_RATE_MM_PER_HOUR
+        : null;
       const hydrologyType = hydrologyTypeFor(ksValues, cultivar);
       return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume, irrigationTimeHours, hydrologyType };
     });
@@ -300,7 +319,7 @@ const IrrigationPlanner = ({
                 <th><HelpTip text="Current growth stage of the vines in this block.">Stage</HelpTip></th>
                 <th><HelpTip text="How much water this block needs, from the latest Irrigation_net reading.">Net Irrigation Req. (mm)</HelpTip></th>
                 <th><HelpTip text="Total irrigation volume recommended for this block, adjusted for growth stage.">Required Volume</HelpTip></th>
-                <th><HelpTip text={`How long the drip system needs to run to deliver the Required Volume, at a drip rate of ${DRIP_RATE_M3_PER_HOUR} m³/hour.`}>Irrigation Time</HelpTip></th>
+                <th><HelpTip text={`How long the drip system needs to run to deliver the Net Irrigation Req., assuming a generic vineyard drip setup (${DRIP_EMITTER_FLOW_RATE_L_PER_HOUR} L/hour emitters, ${DRIP_EMITTER_SPACING_M}m apart, ${DRIP_ROW_SPACING_M}m row spacing) - exact specs for this farm aren't available.`}>Irrigation Time</HelpTip></th>
                 <th><HelpTip text="Plant Water Deficit Index (PWDI) - combines water need, growth stage and grape variety, ranked relative to the rest of the vineyard.">Priority</HelpTip></th>
               </tr>
             </thead>
