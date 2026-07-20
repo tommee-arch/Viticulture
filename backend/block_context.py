@@ -105,7 +105,9 @@ class BlockDataStore:
         irrigation_net_max = max(irrigation_net_values) if irrigation_net_values else 0
 
         pwdi_by_block = {}
+        stage_by_block = {}
         for block, record in self.daily_latest_by_block.items():
+            stage_by_block[block] = record.get("Growth_Stage")
             irrigation_net = record.get("Irrigation_net")
             if irrigation_net is None:
                 pwdi_by_block[block] = None
@@ -119,8 +121,12 @@ class BlockDataStore:
             scaled_grape = GRAPE_TYPE_SCORE.get(hydrology_type, DEFAULT_GRAPE_TYPE_SCORE)
             pwdi_by_block[block] = (0.4 * scaled_irrigation_net) + (0.4 * scaled_stage) + (0.2 * scaled_grape)
 
+        # Blocks with an unknown growth stage are excluded from the ranking
+        # pool - they're forced to 'low' below regardless of PWDI, same as
+        # the frontend, so they don't skew the quartile cutoffs for blocks
+        # with real stage data.
         ranked = sorted(
-            (b for b, v in pwdi_by_block.items() if v is not None),
+            (b for b, v in pwdi_by_block.items() if v is not None and stage_by_block.get(b) is not None),
             key=lambda b: pwdi_by_block[b],
             reverse=True,
         )
@@ -136,10 +142,11 @@ class BlockDataStore:
                 priority_by_block[block] = "moderate"
             else:
                 priority_by_block[block] = "low"
-        # Blocks with no Irrigation_net reading fall back to 'low' rather
-        # than being left unscored - same as the frontend.
-        for block, v in pwdi_by_block.items():
-            if v is None:
+        # Blocks with no Irrigation_net reading, or an unknown growth stage,
+        # fall back to 'low' rather than being left unscored or ranked
+        # purely on irrigation need/grape type - same as the frontend.
+        for block in pwdi_by_block:
+            if pwdi_by_block[block] is None or stage_by_block.get(block) is None:
                 priority_by_block[block] = "low"
 
         return pwdi_by_block, priority_by_block
