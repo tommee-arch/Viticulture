@@ -10,9 +10,9 @@ quartile bucketing - so the chatbot's answers match what's on screen.
 Data files live in ./data - copied from irrigation-dashboard/public/data at
 setup time (see README.md). Re-copy them there if the source data changes.
 """
-import json
 import os
 
+import ijson
 import pandas as pd
 import requests
 
@@ -79,16 +79,24 @@ class BlockDataStore:
         ks_df = pd.read_csv(MANAGERIAL_KS_PATH, skiprows=1)
         self.hydrology_by_cultivar = dict(zip(ks_df["Cultivars"], ks_df["Type of hydrology mech"]))
 
-        with open(DAILY_STATS_PATH) as f:
-            daily_rows = json.load(f)
+        # Full_final_deduped.json is 50k+ rows (all daily history for every
+        # block) but this store only ever needs each block's latest row -
+        # streamed item-by-item with ijson rather than json.load(), so the
+        # full array is never held in memory at once (this backend runs on
+        # Render's free tier, where that peak was tight enough to risk an
+        # OOM kill on request).
         self.daily_latest_by_block = {}
-        for row in daily_rows:
-            block = row.get("Block_ID")
-            if not block:
-                continue
-            cur = self.daily_latest_by_block.get(block)
-            if not cur or row["Date"] > cur["Date"]:
-                self.daily_latest_by_block[block] = row
+        with open(DAILY_STATS_PATH, "rb") as f:
+            # use_float=True: ijson otherwise parses JSON numbers as
+            # decimal.Decimal (to preserve precision), but Flask's jsonify()
+            # can't serialize Decimal - match json.load()'s plain floats.
+            for row in ijson.items(f, "item", use_float=True):
+                block = row.get("Block_ID")
+                if not block:
+                    continue
+                cur = self.daily_latest_by_block.get(block)
+                if not cur or row["Date"] > cur["Date"]:
+                    self.daily_latest_by_block[block] = row
 
         self.pwdi_by_block, self.priority_by_block = self._compute_pwdi_and_priority()
 
