@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, LayersControl } from 'react-leaflet';
 import MapFlyTo from './components/MapFlyTo';
 import MapResizeHandler from './components/MapResizeHandler';
 import HelpTip from './components/HelpTip';
+import TifOverlays from './components/TifOverlays';
 import './IrrigationPlanner.css';
 
 // Flask advisor API (see backend/README.md) - GEMINI_KEY lives there, never here.
@@ -133,13 +134,13 @@ const IrrigationPlanner = ({
       const stage = dailyRecord?.Growth_Stage || 'Unknown';
       const netIrrigationReq = dailyRecord?.Irrigation_net ?? null;
       const requiredVolume = dailyRecord?.Volume_m3 ?? null;
-      // Irrigation Time (hours) = depth needed (mm) / drip application rate
-      // (mm/hour) - a surplus day (netIrrigationReq <= 0) needs no run time.
-      const irrigationTimeHours = netIrrigationReq != null
-        ? Math.max(0, netIrrigationReq) / DRIP_APPLICATION_RATE_MM_PER_HOUR
+      // Irrigation Time (minutes) = depth needed (mm) / drip application rate
+      // (mm/hour) x 60 - a surplus day (netIrrigationReq <= 0) needs no run time.
+      const irrigationTimeMinutes = netIrrigationReq != null
+        ? (Math.max(0, netIrrigationReq) / DRIP_APPLICATION_RATE_MM_PER_HOUR) * 60
         : null;
       const hydrologyType = hydrologyTypeFor(ksValues, cultivar);
-      return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume, irrigationTimeHours, hydrologyType };
+      return { block: f.BLOCK, cultivar, stage, netIrrigationReq, requiredVolume, irrigationTimeMinutes, hydrologyType };
     });
 
     // --- PWDI (Plant Water Deficit Index) ---
@@ -166,8 +167,13 @@ const IrrigationPlanner = ({
 
     // Relative scoring: rank blocks with a PWDI and split into quartiles -
     // "critical" is the top 25% of blocks by water need today, not a fixed
-    // PWDI cutoff (need is relative across the farm, not absolute).
-    const ranked = [...scored].filter(r => r.pwdi != null).sort((a, b) => b.pwdi - a.pwdi);
+    // PWDI cutoff (need is relative across the farm, not absolute). Blocks
+    // with an unknown growth stage are excluded from this ranking pool
+    // entirely (see below, they're forced to 'low' regardless of PWDI) so
+    // they don't skew the quartile cutoffs for blocks with real stage data.
+    const ranked = [...scored]
+      .filter(r => r.pwdi != null && r.stage !== 'Unknown')
+      .sort((a, b) => b.pwdi - a.pwdi);
     const bucketByBlock = {};
     const n = ranked.length;
     ranked.forEach((r, i) => {
@@ -183,7 +189,10 @@ const IrrigationPlanner = ({
     const reqMax = Math.max(0, ...scored.map(r => r.netIrrigationReq ?? 0));
     const rows = scored.map(r => {
       const ratio = (r.netIrrigationReq != null && reqMax > 0) ? r.netIrrigationReq / reqMax : 0;
-      const priorityKey = r.pwdi != null ? bucketByBlock[r.block] : 'low';
+      // Unknown growth stage means we can't reliably judge this block's
+      // water demand - default it to low priority rather than let a high
+      // PWDI (from irrigation need/grape type alone) rank it urgent.
+      const priorityKey = r.stage === 'Unknown' ? 'low' : (r.pwdi != null ? bucketByBlock[r.block] : 'low');
       const priorityMeta = PRIORITY_LEVELS.find(p => p.key === priorityKey) || PRIORITY_LEVELS[PRIORITY_LEVELS.length - 1];
       return { ...r, ratio, priority: priorityMeta.label, color: priorityMeta.color };
     });
@@ -347,7 +356,7 @@ const IrrigationPlanner = ({
                     </div>
                   </td>
                   <td><strong>{row.requiredVolume != null ? `${Math.round(row.requiredVolume).toLocaleString()} m³` : '—'}</strong></td>
-                  <td>{row.irrigationTimeHours != null ? `${row.irrigationTimeHours.toFixed(1)} h` : '—'}</td>
+                  <td>{row.irrigationTimeMinutes != null ? `${row.irrigationTimeMinutes.toFixed(1)} min` : '—'}</td>
                   <td>
                     <span className={`priority-badge ${row.priority.toLowerCase()}`}>
                       {row.priority}
@@ -368,15 +377,25 @@ const IrrigationPlanner = ({
           <h3><HelpTip text="Map of the selected block's boundary.">Field View{selectedField ? ` - ${selectedField.BLOCK}` : ''}</HelpTip></h3>
           <div className="map-inner">
             <MapContainer center={[lat, lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
-              {studyAreaGeojson && (
-                <GeoJSON
-                  key={`irrigation-planner-blocks-${selectedField?.BLOCK}`}
-                  data={studyAreaGeojson}
-                  style={blockStyle}
-                  onEachFeature={onEachFeature}
-                />
-              )}
+              <LayersControl position="topleft">
+                <LayersControl.BaseLayer checked name="Satellite Imagery (Esri)">
+                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                </LayersControl.BaseLayer>
+
+                {/* Uploaded GeoTIFF overlays - above the basemap, below the GeoJSON blocks */}
+                <TifOverlays />
+
+                <LayersControl.Overlay checked name="Vineyard Blocks">
+                  {studyAreaGeojson && (
+                    <GeoJSON
+                      key={`irrigation-planner-blocks-${selectedField?.BLOCK}`}
+                      data={studyAreaGeojson}
+                      style={blockStyle}
+                      onEachFeature={onEachFeature}
+                    />
+                  )}
+                </LayersControl.Overlay>
+              </LayersControl>
               <MapFlyTo selectedField={selectedField} />
               <MapResizeHandler trigger={selectedField?.BLOCK} />
             </MapContainer>

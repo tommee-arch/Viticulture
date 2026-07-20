@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, LayersControl, ScaleControl, GeoJSON } from 'r
 import MapFlyTo from './MapFlyTo';
 import LabelVisibilityToggler from './LabelVisibilityToggler';
 import CursorPosition from './CursorPosition';
+import TifOverlays from './TifOverlays';
 import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from '../utils/colorScale';
 import { sumVRequiredByBlock } from '../utils/vRequired';
 import { areaKm2ToHa } from '../utils/fieldMetrics';
@@ -272,6 +273,9 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
               attribution="&copy; OpenStreetMap contributors"
             />
           </LayersControl.BaseLayer>
+
+          {/* Uploaded GeoTIFF overlays - above the basemap, below the GeoJSON blocks */}
+          <TifOverlays />
 
           {/* Vineyard Blocks - green by default, orange when selected, opacity controlled by the slider */}
           <LayersControl.Overlay checked name="Vineyard Blocks">
