@@ -9,9 +9,6 @@ import LoginScreen from './components/LoginScreen';
 import { isLoggedIn, signOut } from './utils/auth';
 import './App.css';
 
-// Same Flask backend as the Gemini advisor and the data-upload popup.
-const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localhost:5000';
-
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => isLoggedIn());
   const [activeTab, setActiveTab] = useState('Fields');
@@ -44,28 +41,19 @@ export default function App() {
   // Full_final_deduped.json is the enriched per-block/per-day dataset -
   // ETa, Net Deficit, Irrigation Net, Volume, NDVI, NDWI, Ks_current_mean,
   // Growth Stage, Season - only fetched the first time the Fields tab's
-  // Daily mode is opened. The backend keeps the live copy (uploads update
-  // it there), so that's tried first; the static bundled copy is a
-  // fallback if the backend is unreachable (e.g. not running locally, or
-  // asleep on Render's free tier).
+  // Daily mode is opened. Always read straight from the bundled static
+  // file in public/data - the backend's /api/daily-statistics and
+  // /api/upload-daily-data are a separate proof-of-concept path (see the
+  // Upload Data popup) and don't feed this dashboard.
   const [dailyStatistics, setDailyStatistics] = useState(null);
   const [dailyStatisticsLoading, setDailyStatisticsLoading] = useState(false);
   const ensureDailyStatistics = useCallback(() => {
     if (dailyStatistics || dailyStatisticsLoading) return;
     setDailyStatisticsLoading(true);
-    fetch(`${ADVISOR_API_URL}/api/daily-statistics`)
-      .then(response => {
-        if (!response.ok) throw new Error(`Backend returned ${response.status}`);
-        return response.json();
-      })
+    fetch(`${process.env.PUBLIC_URL}/data/Full_final_deduped.json`)
+      .then(response => response.json())
       .then(data => setDailyStatistics(data))
-      .catch(error => {
-        console.error("Backend daily statistics unavailable, falling back to the static file:", error);
-        return fetch(`${process.env.PUBLIC_URL}/data/Full_final_deduped.json`)
-          .then(response => response.json())
-          .then(data => setDailyStatistics(data))
-          .catch(fallbackError => console.error("Error loading daily statistics dataset:", fallbackError));
-      })
+      .catch(error => console.error("Error loading daily statistics dataset:", error))
       .finally(() => setDailyStatisticsLoading(false));
   }, [dailyStatistics, dailyStatisticsLoading]);
 
