@@ -18,6 +18,7 @@ const EMPTY_ARRAY = [];
 
 // Environmental stress level from Net Deficit - thresholds differ for daily
 // vs weekly readings since weekly figures accumulate over 7x the time.
+// Weekly mode only - daily mode shows the real Ks_current_mean value instead.
 function environmentalStress(deficit, dataMode) {
   if (deficit == null) return null;
   const isWeekly = dataMode === 'weekly';
@@ -35,9 +36,10 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   // 'selection' (yellow highlight), 'et' (Evapotranspiration), or 'deficit' (Net Deficit)
   const [colorMode, setColorMode] = useState('selection');
 
-  // Daily mode reads from Daily_Statistics.json - a richer per-block/per-day
-  // dataset (ETa, Net Deficit, Net Irrigation, NDVI, NDWI, Growth Stage,
-  // Season all together) rather than stitching together several sources.
+  // Daily mode reads from Full_final_deduped.json - a richer per-block/per-day
+  // dataset (ETa, Net Deficit, Irrigation Net, Volume, NDVI, NDWI,
+  // Ks_current_mean, Growth Stage, Season all together) rather than
+  // stitching together several sources.
   const dailyForBlock = useMemo(() => {
     if (!field || !dailyStatistics) return [];
     return dailyStatistics
@@ -118,7 +120,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
     if (dataMode === 'forecast') ensureMlReadyDataset();
   }, [dataMode, ensureMlReadyDataset]);
 
-  // Daily_Statistics.json is even larger, so it's only fetched once Daily mode is opened.
+  // Full_final_deduped.json is even larger, so it's only fetched once Daily mode is opened.
   useEffect(() => {
     if (dataMode === 'daily') ensureDailyStatistics();
   }, [dataMode, ensureDailyStatistics]);
@@ -134,7 +136,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const selectedIndex = Math.max(0, availableDates.indexOf(selectedDate));
   const currentRecord = activeSeries[selectedIndex] || null;
   // Daily mode has an exact NDVI/NDWI/Growth Stage reading for every date in
-  // Daily_Statistics.json - Weekly falls back to the sparse satellite-pass
+  // Full_final_deduped.json - Weekly falls back to the sparse satellite-pass
   // lookup and the phenology-CSV-derived stage, same as before.
   const currentNdvi = dataMode === 'daily'
     ? (currentRecord?.Mean_NDVI ?? null)
@@ -145,7 +147,11 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
   const currentVRequired = vRequiredByBlock[field.BLOCK] ?? null;
   const currentSeason = formatSeason(currentRecord?.Season) || field.season || null;
   const plantHealth = ndviToHealth(currentNdvi);
-  const stress = environmentalStress(currentRecord?.Net_Deficit_mm, dataMode);
+  // Daily mode shows the real Ks_current_mean value (crop water-stress
+  // coefficient) instead of the deficit-derived High/Moderate/Low bucket.
+  const stress = dataMode === 'daily'
+    ? (currentRecord?.Ks_current_mean != null ? { label: currentRecord.Ks_current_mean.toFixed(2), className: '' } : null)
+    : environmentalStress(currentRecord?.Net_Deficit_mm, dataMode);
   // The block's phenology record for whichever season is currently in view -
   // falls back to any record for the block if that exact season isn't found.
   const currentPheno = phenoData.find(r => r['Block ID'] === field.BLOCK && r.season === currentSeason)
@@ -414,7 +420,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                     className="label"
                   ><span>Irrigation Net</span></HelpTip>
                   {dataMode === 'daily' ? (
-                    <span className="value">{currentRecord?.Net_Irrigation_mm != null ? currentRecord.Net_Irrigation_mm.toFixed(2) : '—'} <span className="unit">mm</span></span>
+                    <span className="value">{currentRecord?.Irrigation_net != null ? currentRecord.Irrigation_net.toFixed(2) : '—'} <span className="unit">mm</span></span>
                   ) : (
                     <span className="value">{currentVRequired != null ? Math.round(currentVRequired).toLocaleString() : '—'} <span className="unit">m³</span></span>
                   )}
@@ -426,17 +432,27 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
                   </span>
                 </div>
                 <div className="card kpi">
-                  <HelpTip text="How much more water the vines need than they've received from rain." className="label"><span>Net Deficit</span></HelpTip>
-                  <span className="value">
-                    {currentRecord ? currentRecord.Net_Deficit_mm : '—'} {currentRecord && <span className="unit">mm/{dataMode === 'daily' ? 'day' : 'week'}</span>}
-                  </span>
+                  <HelpTip
+                    text={dataMode === 'daily' ? 'Total irrigation volume needed on this exact day.' : "How much more water the vines need than they've received from rain."}
+                    className="label"
+                  ><span>{dataMode === 'daily' ? 'Volume (M3)' : 'Net Deficit'}</span></HelpTip>
+                  {dataMode === 'daily' ? (
+                    <span className="value">{currentRecord?.Volume_m3 != null ? currentRecord.Volume_m3.toFixed(2) : '—'} <span className="unit">m³</span></span>
+                  ) : (
+                    <span className="value">
+                      {currentRecord ? currentRecord.Net_Deficit_mm : '—'} {currentRecord && <span className="unit">mm/week</span>}
+                    </span>
+                  )}
                 </div>
                 <div className="card kpi">
                   <HelpTip text="Satellite soil moisture index - higher means wetter soil." className="label"><span>NDWI</span></HelpTip>
                   <span className="value">{currentNdwi != null ? currentNdwi.toFixed(2) : '—'}</span>
                 </div>
                 <div className={`card kpi ${stress ? stress.className : ''}`}>
-                  <HelpTip text="How urgently this block needs water, based on its net deficit." className="label"><span>Environmental Stress</span></HelpTip>
+                  <HelpTip
+                    text={dataMode === 'daily' ? 'Crop water-stress coefficient (Ks) - closer to 1 means little to no water stress.' : "How urgently this block needs water, based on its net deficit."}
+                    className="label"
+                  ><span>Environmental Stress</span></HelpTip>
                   <span className="value">{stress ? stress.label : '—'}</span>
                 </div>
                 <div className="card kpi">

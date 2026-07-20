@@ -77,7 +77,7 @@ const IrrigationPlanner = ({
     if (el) el.scrollTop = el.scrollHeight;
   }, [chatHistory]);
 
-  // Daily_Statistics.json is large and only fetched once something needs it -
+  // Full_final_deduped.json is large and only fetched once something needs it -
   // this table is one of those things.
   useEffect(() => {
     ensureDailyStatistics();
@@ -117,7 +117,7 @@ const IrrigationPlanner = ({
     return map;
   }, [phenoData, uniqueBlocks, latestPhenoSeason]);
 
-  // Each block's most recent record in Daily_Statistics.json - Net
+  // Each block's most recent record in Full_final_deduped.json - Net
   // Irrigation Req, Required Volume and Stage are all read straight from
   // here now (Pheno_Net_mm, Volume_m3, Growth_Stage respectively).
   const latestDailyByBlock = useMemo(() => {
