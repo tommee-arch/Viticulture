@@ -1,78 +1,85 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, LayersControl, ScaleControl, GeoJSON } from 'react-leaflet';
 import MapFlyTo from './MapFlyTo';
 import LabelVisibilityToggler from './LabelVisibilityToggler';
 import CursorPosition from './CursorPosition';
 import TifOverlays from './TifOverlays';
-import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from '../utils/colorScale';
-import { sumVRequiredByBlock } from '../utils/vRequired';
-import { areaKm2ToHa } from '../utils/fieldMetrics';
+import OrderedOverlaysControl from './OrderedOverlaysControl';
+import { irrigationNetColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, IRRIGATION_NET_LOW, IRRIGATION_NET_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from '../utils/colorScale';
+import { areaKm2ToHa, formatSeason } from '../utils/fieldMetrics';
 import HelpTip from './HelpTip';
 
-export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson }) {
-  // State for the fill opacity slider (0 to 1) - also drives the ET/Net Deficit/NDVI/NDWI/Irrigation overlays
+export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyStatistics, ensureDailyStatistics }) {
+  // State for the fill opacity slider (0 to 1) - also drives the ET/Irrigation Net/NDVI/NDWI/Irrigation overlays
   const [fillOpacity, setFillOpacity] = useState(0.5);
-  // 'selection' (green/orange), 'et', 'deficit', 'ndvi', 'ndwi', or 'irrigation'
+  // 'selection' (green/orange), 'et', 'irrigationNet', 'ndvi', 'ndwi', or 'irrigation'
   const [colorMode, setColorMode] = useState('selection');
 
-  // Most recent date present in the daily dataset, and each block's reading on that date.
-  const latestDate = useMemo(() => {
-    if (!dailyIrrigation.length) return null;
-    return dailyIrrigation.reduce((max, r) => (r.Date > max ? r.Date : max), dailyIrrigation[0].Date);
-  }, [dailyIrrigation]);
+  // Full_final_deduped.json is only fetched once something needs it - the
+  // Home tab map's ET/Irrigation Net/NDVI/NDWI/Irrigation Vol. overlays are
+  // one of those things.
+  useEffect(() => {
+    ensureDailyStatistics();
+  }, [ensureDailyStatistics]);
 
+  // Each block's most recent record in Full_final_deduped.json - ET,
+  // Irrigation Net, NDVI, NDWI and Volume are all read straight from here
+  // (ETa_mm, Irrigation_net, Mean_NDVI, Mean_NDWI, Volume_m3 respectively).
   const latestByBlock = useMemo(() => {
     const map = {};
-    if (!latestDate) return map;
-    dailyIrrigation.forEach(r => {
-      if (r.Date === latestDate) map[r.Block_ID] = r;
+    (dailyStatistics || []).forEach(r => {
+      const cur = map[r.Block_ID];
+      if (!cur || r.Date > cur.Date) map[r.Block_ID] = r;
     });
     return map;
-  }, [dailyIrrigation, latestDate]);
+  }, [dailyStatistics]);
+
+  const latestDate = useMemo(() => {
+    const dates = Object.values(latestByBlock).map(r => r.Date);
+    return dates.length ? dates.reduce((max, d) => (d > max ? d : max)) : null;
+  }, [latestByBlock]);
 
   const etMax = useMemo(() => Math.max(0, ...Object.values(latestByBlock).map(r => r.ETa_mm ?? 0)), [latestByBlock]);
-  const deficitMax = useMemo(() => Math.max(0, ...Object.values(latestByBlock).map(r => r.Net_Deficit_mm ?? 0)), [latestByBlock]);
 
-  // Most recent satellite-pass date in the NDVI / NDWI datasets, and each block's reading on it.
-  const latestNdviDate = useMemo(() => {
-    if (!ndviStats?.dates?.length) return null;
-    return ndviStats.dates.reduce((max, d) => (d > max ? d : max), ndviStats.dates[0]);
-  }, [ndviStats]);
-  const ndviByBlock = useMemo(() => ndviStats?.data?.[latestNdviDate] || {}, [ndviStats, latestNdviDate]);
-  const ndviValues = useMemo(() => Object.values(ndviByBlock).map(b => b.mean).filter(Number.isFinite), [ndviByBlock]);
+  const irrigationNetValues = useMemo(() => Object.values(latestByBlock).map(r => r.Irrigation_net).filter(Number.isFinite), [latestByBlock]);
+  const irrigationNetMin = irrigationNetValues.length ? Math.min(...irrigationNetValues) : 0;
+  const irrigationNetMax = irrigationNetValues.length ? Math.max(...irrigationNetValues) : 1;
+
+  const ndviValues = useMemo(() => Object.values(latestByBlock).map(r => r.Mean_NDVI).filter(Number.isFinite), [latestByBlock]);
   const ndviMin = ndviValues.length ? Math.min(...ndviValues) : 0;
   const ndviMax = ndviValues.length ? Math.max(...ndviValues) : 1;
 
-  const latestNdwiDate = useMemo(() => {
-    if (!ndwiSoilStats?.dates?.length) return null;
-    return ndwiSoilStats.dates.reduce((max, d) => (d > max ? d : max), ndwiSoilStats.dates[0]);
-  }, [ndwiSoilStats]);
-  const ndwiByBlock = useMemo(() => ndwiSoilStats?.data?.[latestNdwiDate] || {}, [ndwiSoilStats, latestNdwiDate]);
-  const ndwiValues = useMemo(() => Object.values(ndwiByBlock).map(b => b.ndwi?.mean).filter(Number.isFinite), [ndwiByBlock]);
+  const ndwiValues = useMemo(() => Object.values(latestByBlock).map(r => r.Mean_NDWI).filter(Number.isFinite), [latestByBlock]);
   const ndwiMin = ndwiValues.length ? Math.min(...ndwiValues) : 0;
   const ndwiMax = ndwiValues.length ? Math.max(...ndwiValues) : 1;
 
-  // Total required irrigation volume per block (static - no date dimension in this dataset).
-  const vRequiredByBlock = useMemo(() => sumVRequiredByBlock(vRequiredGeojson), [vRequiredGeojson]);
-  const vRequiredMax = useMemo(() => Math.max(0, ...Object.values(vRequiredByBlock)), [vRequiredByBlock]);
+  const volumeValues = useMemo(() => Object.values(latestByBlock).map(r => r.Volume_m3).filter(Number.isFinite), [latestByBlock]);
+  const volumeMin = volumeValues.length ? Math.min(...volumeValues) : 0;
+  const volumeMax = volumeValues.length ? Math.max(...volumeValues) : 1;
+
+  // Most recent season for the selected block, from Full_final_deduped.json -
+  // falls back to vineyard_STAR.csv's static season if no daily record exists yet.
+  const selectedFieldSeason = selectedField
+    ? formatSeason(latestByBlock[selectedField.BLOCK]?.Season) || selectedField.season || null
+    : null;
 
   // Dynamic style application for the GeoJSON polygons
   const styleGeoJSON = (feature) => {
     const isSelected = selectedField && selectedField.BLOCK === feature.properties.BLOCK;
 
-    if (colorMode === 'et' || colorMode === 'deficit' || colorMode === 'ndvi' || colorMode === 'ndwi' || colorMode === 'irrigation') {
+    if (colorMode === 'et' || colorMode === 'irrigationNet' || colorMode === 'ndvi' || colorMode === 'ndwi' || colorMode === 'irrigation') {
+      const record = latestByBlock[feature.properties.BLOCK];
       let fillColor;
-      if (colorMode === 'et' || colorMode === 'deficit') {
-        const record = latestByBlock[feature.properties.BLOCK];
-        fillColor = colorMode === 'et'
-          ? evapotranspirationColor(record?.ETa_mm, etMax)
-          : netDeficitColor(record?.Net_Deficit_mm, deficitMax);
+      if (colorMode === 'et') {
+        fillColor = evapotranspirationColor(record?.ETa_mm, etMax);
+      } else if (colorMode === 'irrigationNet') {
+        fillColor = irrigationNetColor(record?.Irrigation_net, irrigationNetMin, irrigationNetMax);
       } else if (colorMode === 'ndvi') {
-        fillColor = ndviColor(ndviByBlock[feature.properties.BLOCK]?.mean, ndviMin, ndviMax);
+        fillColor = ndviColor(record?.Mean_NDVI, ndviMin, ndviMax);
       } else if (colorMode === 'ndwi') {
-        fillColor = ndwiColor(ndwiByBlock[feature.properties.BLOCK]?.ndwi?.mean, ndwiMin, ndwiMax);
+        fillColor = ndwiColor(record?.Mean_NDWI, ndwiMin, ndwiMax);
       } else {
-        fillColor = irrigationVolumeColor(vRequiredByBlock[feature.properties.BLOCK], vRequiredMax);
+        fillColor = irrigationVolumeColor(record?.Volume_m3, volumeMin, volumeMax);
       }
       return {
         fillColor,
@@ -116,14 +123,14 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
 
   return (
     <div className="map-wrapper" style={{ position: 'relative', height: '100%', width: '100%' }}>
-      
+
       {/* Opacity Slider + Symbology UI Overlay */}
       <div className="opacity-slider-control" style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 1000, background: 'white', padding: '10px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', minWidth: '190px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '10px' }}>
           {[
             { key: 'selection', label: 'Selection', help: 'Just highlight the selected block.' },
             { key: 'et', label: 'ET', help: 'Colour every block by evapotranspiration.' },
-            { key: 'deficit', label: 'Net Deficit', help: 'Colour every block by net water deficit.' },
+            { key: 'irrigationNet', label: 'Irrigation Net', help: 'Colour every block by net irrigation required.' },
             { key: 'ndvi', label: 'NDVI', help: 'Colour every block by plant health.' },
             { key: 'ndwi', label: 'NDWI', help: 'Colour every block by soil moisture.' },
             { key: 'irrigation', label: 'Irrigation Vol.', help: 'Colour every block by irrigation volume required.' }
@@ -167,8 +174,8 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
               {selectedField.Area != null && (
                 <tr><td style={{ color: '#666', paddingRight: '10px' }}>Area</td><td>{areaKm2ToHa(selectedField.Area)?.toFixed(3)} ha</td></tr>
               )}
-              {selectedField.season && (
-                <tr><td style={{ color: '#666', paddingRight: '10px' }}>Season</td><td>{selectedField.season}</td></tr>
+              {selectedFieldSeason && (
+                <tr><td style={{ color: '#666', paddingRight: '10px' }}>Season</td><td>{selectedFieldSeason}</td></tr>
               )}
             </tbody>
           </table>
@@ -203,20 +210,20 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
           </>
         )}
 
-        {colorMode === 'deficit' && (
+        {colorMode === 'irrigationNet' && (
           <>
-            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Net Deficit (mm){latestDate ? ` - ${latestDate}` : ''}</div>
-            <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(NET_DEFICIT_LOW, NET_DEFICIT_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Irrigation Net (mm){latestDate ? ` - ${latestDate}` : ''}</div>
+            <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(IRRIGATION_NET_LOW, IRRIGATION_NET_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '2px' }}>
-              <span>0</span>
-              <span>{deficitMax.toFixed(1)}</span>
+              <span>{irrigationNetMin.toFixed(1)}</span>
+              <span>{irrigationNetMax.toFixed(1)}</span>
             </div>
           </>
         )}
 
         {colorMode === 'ndvi' && (
           <>
-            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>NDVI{latestNdviDate ? ` - ${latestNdviDate}` : ''}</div>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>NDVI{latestDate ? ` - ${latestDate}` : ''}</div>
             <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(NDVI_LOW, NDVI_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '2px' }}>
               <span>{ndviMin.toFixed(2)}</span>
@@ -227,7 +234,7 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
 
         {colorMode === 'ndwi' && (
           <>
-            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>NDWI{latestNdwiDate ? ` - ${latestNdwiDate}` : ''}</div>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>NDWI{latestDate ? ` - ${latestDate}` : ''}</div>
             <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(NDWI_LOW, NDWI_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '2px' }}>
               <span>{ndwiMin.toFixed(2)}</span>
@@ -238,18 +245,18 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
 
         {colorMode === 'irrigation' && (
           <>
-            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Irrigation Volume Required (m³)</div>
+            <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Irrigation Volume Required (m³){latestDate ? ` - ${latestDate}` : ''}</div>
             <div style={{ height: '10px', borderRadius: '3px', background: gradientCss(IRRIGATION_LOW, IRRIGATION_HIGH), opacity: fillOpacity + 0.3 > 1 ? 1 : fillOpacity + 0.3 }}></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '2px' }}>
-              <span>0</span>
-              <span>{Math.round(vRequiredMax).toLocaleString()}</span>
+              <span>{Math.round(volumeMin).toLocaleString()}</span>
+              <span>{Math.round(volumeMax).toLocaleString()}</span>
             </div>
           </>
         )}
       </div>
 
       <MapContainer center={[-33.92, 18.86]} zoom={14} style={{ height: '100%', width: '100%' }}>
-        
+
         {/* Dynamic Scale Bar */}
         <ScaleControl position="bottomleft" imperial={false} />
 
@@ -283,7 +290,7 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
             <GeoJSON
               // Remounts the layer whenever the selection or opacity changes so Leaflet
               // actually repaints - a stale style prop alone doesn't force a redraw.
-              key={`blocks-${selectedField?.BLOCK}-${fillOpacity}-${colorMode}-${latestDate}-${latestNdviDate}-${latestNdwiDate}-${vRequiredMax}`}
+              key={`blocks-${selectedField?.BLOCK}-${fillOpacity}-${colorMode}-${latestDate}-${etMax}-${irrigationNetMax}-${ndviMax}-${ndwiMax}-${volumeMax}`}
               data={studyAreaGeojson}
               style={styleGeoJSON}
               onEachFeature={onEachFeature}
@@ -291,6 +298,10 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
           )}
           </LayersControl.Overlay>
         </LayersControl>
+
+        {/* Forces the overlay checkboxes into a fixed order (see component
+            for why this can't just be JSX declaration order) */}
+        <OrderedOverlaysControl order={['Vineyard Blocks', 'Most recent Sat Imagery', 'Net Irrigation Required']} />
 
         {/* This silently listens for selectedField changes and zooms the map */}
         <MapFlyTo selectedField={selectedField} />

@@ -16,11 +16,7 @@ export default function App() {
   const [fieldsData, setFieldsData] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [studyAreaGeojson, setStudyAreaGeojson] = useState(null);
-  const [dailyIrrigation, setDailyIrrigation] = useState([]);
   const [weeklyIrrigation, setWeeklyIrrigation] = useState([]);
-  const [ndviStats, setNdviStats] = useState(null);
-  const [ndwiSoilStats, setNdwiSoilStats] = useState(null);
-  const [vRequiredGeojson, setVRequiredGeojson] = useState(null);
   const [phenoData, setPhenoData] = useState([]);
   const [ksValues, setKsValues] = useState([]);
   // ml_ready_dataset.json is ~20MB (it's the source for the Kc/crop-coefficient
@@ -66,11 +62,6 @@ export default function App() {
     .then(data => setStudyAreaGeojson(data))
     .catch(error => console.error("Error loading Study Area:", error));
 
-    fetch(`${process.env.PUBLIC_URL}/data/daily_irrigation_final.json`)
-    .then(response => response.json())
-    .then(data => setDailyIrrigation(data))
-    .catch(error => console.error("Error loading daily irrigation data:", error));
-
     // Weekly_accumulated.json is keyed by Week_Start/Week_End rather than a
     // single Date - aliased to Date here so the rest of the app (date
     // slider, closest-date lookups) can treat it the same as daily records.
@@ -78,21 +69,6 @@ export default function App() {
     .then(response => response.json())
     .then(data => setWeeklyIrrigation(data.map(r => ({ ...r, Date: r.Week_Start }))))
     .catch(error => console.error("Error loading weekly irrigation data:", error));
-
-    fetch(`${process.env.PUBLIC_URL}/data/ndvi_stats.json`)
-    .then(response => response.json())
-    .then(data => setNdviStats(data))
-    .catch(error => console.error("Error loading NDVI stats:", error));
-
-    fetch(`${process.env.PUBLIC_URL}/data/tokara_indices_NDWI_SOIL.json`)
-    .then(response => response.json())
-    .then(data => setNdwiSoilStats(data))
-    .catch(error => console.error("Error loading NDWI/soil moisture stats:", error));
-
-    fetch(`${process.env.PUBLIC_URL}/data/Tokara_V_Required.json`)
-    .then(response => response.json())
-    .then(data => setVRequiredGeojson(data))
-    .catch(error => console.error("Error loading irrigation volume required data:", error));
 
     Papa.parse(`${process.env.PUBLIC_URL}/data/Tokara_Pheno_Data.csv`, {
       download: true,
@@ -161,10 +137,8 @@ export default function App() {
               studyAreaGeojson={studyAreaGeojson}
               selectedField={selectedField}
               setSelectedField={setSelectedField}
-              dailyIrrigation={dailyIrrigation}
-              ndviStats={ndviStats}
-              ndwiSoilStats={ndwiSoilStats}
-              vRequiredGeojson={vRequiredGeojson}
+              dailyStatistics={dailyStatistics}
+              ensureDailyStatistics={ensureDailyStatistics}
             />
           )}
 
@@ -175,9 +149,6 @@ export default function App() {
               setSelectedField={setSelectedField}
               studyAreaGeojson={studyAreaGeojson}
               weeklyIrrigation={weeklyIrrigation}
-              ndviStats={ndviStats}
-              ndwiSoilStats={ndwiSoilStats}
-              vRequiredGeojson={vRequiredGeojson}
               phenoData={phenoData}
               mlReadyData={mlReadyData}
               mlReadyLoading={mlReadyLoading}

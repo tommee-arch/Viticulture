@@ -29,14 +29,20 @@ const SAT_IMAGERY_PNG_URL = `${process.env.PUBLIC_URL}/data/Tokara_2025-04-24_ti
 // in their own pane so they always sit above the basemap tiles but below
 // the vineyard-block GeoJSON, regardless of which order layers are
 // toggled/added in.
+//
+// Checkbox order in the control isn't set here - L.Control.Layers has no
+// ordering API and the order it registers overlays in isn't reliably tied
+// to JSX order, so MapTab.js/Irrigation_Planner.js each render an
+// <OrderedOverlaysControl> alongside this that fixes the on-screen order
+// directly.
 export default function TifOverlays() {
   return (
     <Pane name="geotiff-overlays" style={{ zIndex: 350 }}>
-      <LayersControl.Overlay checked name="Net Irrigation Required">
-        <ImageOverlay url={IRRIGATION_NET_PNG_URL} bounds={IRRIGATION_NET_BOUNDS} opacity={0.85} />
-      </LayersControl.Overlay>
       <LayersControl.Overlay checked name="Most recent Sat Imagery">
         <ImageOverlay url={SAT_IMAGERY_PNG_URL} bounds={SAT_IMAGERY_BOUNDS} opacity={0.85} />
+      </LayersControl.Overlay>
+      <LayersControl.Overlay checked name="Net Irrigation Required">
+        <ImageOverlay url={IRRIGATION_NET_PNG_URL} bounds={IRRIGATION_NET_BOUNDS} opacity={0.85} />
       </LayersControl.Overlay>
     </Pane>
   );

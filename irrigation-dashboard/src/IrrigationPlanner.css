@@ -133,10 +133,13 @@
   font-weight: bold;
 }
 
-.priority-badge.critical { background: #fadbd8; color: #c0392b; }
-.priority-badge.high { background: #fdebd0; color: #d35400; }
-.priority-badge.moderate { background: #fdf3cf; color: #b7950b; }
-.priority-badge.low { background: #d5f5e3; color: #27ae60; }
+/* Okabe-Ito colorblind-safe palette - blue for "low" rather than the
+   conventional green, so it stays distinguishable from "critical" under
+   red-green color blindness. */
+.priority-badge.critical { background: #f7ddd0; color: #d55e00; }
+.priority-badge.high { background: #faecd0; color: #b37700; }
+.priority-badge.moderate { background: #f7f2ce; color: #8a7f00; }
+.priority-badge.low { background: #d6e8f2; color: #0072b2; }
 
 /* Bottom row: Map | Graph | AI Assistant, always a single line.
    Named distinctly from NowScreen's ".dashboard-grid" (App.css) to avoid
