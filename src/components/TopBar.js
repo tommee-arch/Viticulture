@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import HelpTip from './HelpTip';
 import UploadDataPopup from './Upload_data_Popup';
+import { getSignInCount } from '../utils/auth';
 
-export default function TopBar({ sidebarCollapsed, onToggleSidebar }) {
+export default function TopBar({ sidebarCollapsed, onToggleSidebar, onLogout }) {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const handlePrint = () => {
@@ -31,6 +32,11 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }) {
         <HelpTip text="Print or save a PDF of what's currently on screen.">
           <button className="print-btn" onClick={handlePrint}>
             Generate Report
+          </button>
+        </HelpTip>
+        <HelpTip text={`You've signed in ${getSignInCount()} time${getSignInCount() === 1 ? '' : 's'}.`}>
+          <button className="print-btn" onClick={onLogout} style={{ background: '#64748b' }}>
+            Log Out
           </button>
         </HelpTip>
       </div>

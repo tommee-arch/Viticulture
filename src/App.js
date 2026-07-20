@@ -5,12 +5,15 @@ import TopBar from './components/TopBar';
 import NowScreen from './NowScreen';
 import MapTab from './components/MapTab'; // Assuming you have a full-screen map component
 import IrrigationPlanner from './Irrigation_Planner';
+import LoginScreen from './components/LoginScreen';
+import { isLoggedIn, signOut } from './utils/auth';
 import './App.css';
 
 // Same Flask backend as the Gemini advisor and the data-upload popup.
 const ADVISOR_API_URL = process.env.REACT_APP_ADVISOR_API_URL || 'http://localhost:5000';
 
 export default function App() {
+  const [loggedIn, setLoggedIn] = useState(() => isLoggedIn());
   const [activeTab, setActiveTab] = useState('Fields');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [fieldsData, setFieldsData] = useState([]);
@@ -138,6 +141,10 @@ export default function App() {
     });
   }, []);
 
+  if (!loggedIn) {
+    return <LoginScreen onLogin={() => setLoggedIn(true)} />;
+  }
+
   return (
     <div className="app-container">
       <Sidebar
@@ -152,6 +159,7 @@ export default function App() {
         <TopBar
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed(v => !v)}
+          onLogout={() => { signOut(); setLoggedIn(false); }}
         />
 
         <main className="content-area">
