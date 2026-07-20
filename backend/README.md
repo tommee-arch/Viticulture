@@ -1,10 +1,10 @@
 # IRRIGUIDE Advisor API
 
 Small Flask API that answers irrigation questions for a vineyard block using
-Gemini, grounded in this project's real data (weekly ETa/deficit, required
-irrigation volume, growth stage from the CSV's Budbreak/Flowering dates, and
-a live Open-Meteo forecast). `GEMINI_KEY` lives only here, never in the React
-frontend.
+Gemini, grounded in this project's real data - the same latest-record-per-
+block data and PWDI/priority calculation as the frontend's Irrigation
+Planner table (see `block_context.py`), plus a live Open-Meteo forecast.
+`GEMINI_KEY` lives only here, never in the React frontend.
 
 ## Endpoints
 
@@ -94,11 +94,17 @@ Railway and Fly.io work the same way (Python buildpack + `Procfile`).
 `data/` is a static copy of the datasets the frontend reads from
 `irrigation-dashboard/public/data/` (vineyard block metadata, weekly
 irrigation readings, required irrigation volumes, block boundaries,
-phenology dates, and the daily statistics dataset). Re-copy the relevant
-file(s) here if the source data is ever regenerated - except
-`Daily_Statistics.json`, which this backend now owns and mutates via
-`/api/upload-daily-data`; don't overwrite the backend's copy with the
-frontend's static one without checking which has newer uploads.
+phenology dates, per-cultivar Ks/hydrology values, and the daily statistics
+dataset). Re-copy the relevant file(s) here if the source data is ever
+regenerated - except `Daily_Statistics.json`, which this backend now owns
+and mutates via `/api/upload-daily-data`; don't overwrite the backend's copy
+with the frontend's static one without checking which has newer uploads.
+
+`block_context.py` (used by `/api/ask`) reads its own snapshot of
+`Daily_Statistics.json` at process start to compute each block's PWDI/
+priority/volume - if an upload lands while the process is already running,
+the advisor won't see it until the process restarts (same restart caveat as
+above).
 
 ## Geospatial dependencies
 

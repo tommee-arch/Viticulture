@@ -1,137 +1,148 @@
 """Loads the same Tokara vineyard datasets the React frontend uses and turns
 them into the per-block context the Gemini advisor answers questions from.
 
+The PWDI/priority/volume numbers here are computed exactly the same way as
+the Irrigation Planner table in the frontend (irrigation-dashboard/src/
+Irrigation_Planner.js) - same Daily_Statistics.json latest-record-per-block
+source, same Managerial_Ks_Value.csv hydrology lookup, same 1-5 scaling and
+quartile bucketing - so the chatbot's answers match what's on screen.
+
 Data files live in ./data - copied from irrigation-dashboard/public/data at
 setup time (see README.md). Re-copy them there if the source data changes.
 """
 import json
 import os
-from dataclasses import dataclass
-from datetime import date, datetime
 
 import pandas as pd
 import requests
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+DAILY_STATS_PATH = os.path.join(DATA_DIR, "Daily_Statistics.json")
+MANAGERIAL_KS_PATH = os.path.join(DATA_DIR, "Managerial_Ks_Value.csv")
 
-# PWDI (Plant Water Deficit Index) weights, as specified for the advisor.
-DEFICIT_WEIGHT = 0.40
-ETA_WEIGHT = 0.30
-STAGE_WEIGHT = 0.20
-CULTIVAR_WEIGHT = 0.10
-
-# Ordinal water-sensitivity by growth stage (there's no Veraison/Harvest date
-# in the dataset, so Flowering is as far as this resolves). Not sourced from
-# a citation - a reasonable ordering pending real agronomic weights.
-STAGE_SENSITIVITY = {
-    "Pre-Budbreak": 0.2,
-    "Budbreak": 0.6,
-    "Flowering": 1.0,
+# Growth stage -> water-demand score (1-5, 5 = highest demand). Mirrors
+# GROWTH_STAGE_SCORE in Irrigation_Planner.js exactly.
+GROWTH_STAGE_SCORE = {
+    "PreVeraison": 5,
+    "Flowering": 4,
+    "Budbreak": 2,
+    "Harvest": 1,
+    "Pre-Budbreak": 1,
+    "Unknown": 1,
 }
 
-# No per-cultivar water-need dataset exists in this project, so every
-# cultivar gets the same neutral weight. Swap in real coefficients if/when
-# that data becomes available - the 0.10 weight keeps its impact small.
-DEFAULT_CULTIVAR_WEIGHT = 0.5
-
-PRIORITY_THRESHOLDS = [
-    (0.75, "Critical"),
-    (0.5, "High"),
-    (0.25, "Medium"),
-    (0.0, "Low"),
-]
+# Hydrology strategy (Managerial_Ks_Value.csv's "Type of hydrology mech")
+# -> water-sensitivity score (1-5). Mirrors GRAPE_TYPE_SCORE in
+# Irrigation_Planner.js exactly.
+GRAPE_TYPE_SCORE = {
+    "Isohydric": 5,
+    "Anisohydric-Isohydric": 3,
+    "Anisohydric": 1,
+}
+DEFAULT_GRAPE_TYPE_SCORE = 3
 
 
-@dataclass
 class BlockContext:
-    block_id: str
-    cultivar: str
-    stage: str
-    stage_day: int
-    eta: float
-    deficit: float
-    pwdi: float
-    priority: str
-    volume: float
-    weather_summary: str
-
-
-def _parse_us_date(value):
-    """vineyard_STAR.csv stores Budbreak/Flowering as M/D/YYYY strings."""
-    if not value or (isinstance(value, float) and pd.isna(value)):
-        return None
-    try:
-        month, day, year = str(value).split("/")
-        return date(int(year), int(month), int(day))
-    except (ValueError, AttributeError):
-        return None
-
-
-def _anchor_to_season(day: date | None, season_start_year: int | None) -> date | None:
-    """vineyard_STAR.csv only records Budbreak/Flowering for the 2022/2023
-    season, but weekly_irrigation_final.json spans three seasons - re-anchor
-    the month/day onto whichever season the reading actually falls in, since
-    phenology recurs annually rather than only ever happening in 2022."""
-    if day is None or season_start_year is None:
-        return day
-    return date(season_start_year, day.month, day.day)
-
-
-def _derive_stage(record_date: date, season_start_year: int | None, budbreak: date | None, flowering: date | None):
-    budbreak = _anchor_to_season(budbreak, season_start_year)
-    flowering = _anchor_to_season(flowering, season_start_year)
-    if flowering and record_date >= flowering:
-        return "Flowering", (record_date - flowering).days
-    if budbreak and record_date >= budbreak:
-        return "Budbreak", (record_date - budbreak).days
-    if budbreak:
-        return "Pre-Budbreak", (record_date - budbreak).days
-    return "Pre-Budbreak", 0
-
-
-def _priority_for(pwdi: float) -> str:
-    for threshold, label in PRIORITY_THRESHOLDS:
-        if pwdi >= threshold:
-            return label
-    return "Low"
+    def __init__(self, block_id, cultivar, stage, record_date, eta, deficit,
+                 pheno_net_mm, pwdi, priority, volume, weather_summary):
+        self.block_id = block_id
+        self.cultivar = cultivar
+        self.stage = stage
+        self.record_date = record_date
+        self.eta = eta
+        self.deficit = deficit
+        self.pheno_net_mm = pheno_net_mm
+        self.pwdi = pwdi
+        self.priority = priority
+        self.volume = volume
+        self.weather_summary = weather_summary
 
 
 class BlockDataStore:
-    """Loads once at process start; the underlying datasets are static."""
+    """Loads once at process start; the underlying datasets are static.
+
+    NOTE: Daily_Statistics.json is also the file /api/upload-daily-data
+    mutates (see daily_stats_store.py). This store reads its own snapshot
+    at startup, so an upload landing while this process is already running
+    won't be reflected here until the process restarts - same
+    already-accepted limitation the rest of this backend has on Render's
+    ephemeral filesystem (see README.md's persistence caveat).
+    """
 
     def __init__(self):
         self.fields = pd.read_csv(os.path.join(DATA_DIR, "vineyard_STAR.csv"))
         self.fields = self.fields.dropna(subset=["BLOCK"]).drop_duplicates("BLOCK")
 
-        with open(os.path.join(DATA_DIR, "weekly_irrigation_final.json")) as f:
-            weekly = pd.DataFrame(json.load(f))
-        # Each block's most recent weekly reading.
-        weekly = weekly.sort_values("Date")
-        self.latest_by_block = weekly.groupby("Block_ID").last()
+        # Managerial_Ks_Value.csv has a title row before the real header
+        # ("Cultivars,Type of hydrology mech,Budbreak,..."), same as the
+        # frontend's parsing of it.
+        ks_df = pd.read_csv(MANAGERIAL_KS_PATH, skiprows=1)
+        self.hydrology_by_cultivar = dict(zip(ks_df["Cultivars"], ks_df["Type of hydrology mech"]))
 
-        with open(os.path.join(DATA_DIR, "Tokara_V_Required.json")) as f:
-            v_required_geojson = json.load(f)
-        volumes: dict[str, float] = {}
-        for feature in v_required_geojson.get("features", []):
-            props = feature.get("properties", {})
-            block = props.get("BLOCK")
-            volume = props.get("V_Required_m3")
-            if block is None or not isinstance(volume, (int, float)):
+        with open(DAILY_STATS_PATH) as f:
+            daily_rows = json.load(f)
+        self.daily_latest_by_block = {}
+        for row in daily_rows:
+            block = row.get("Block_ID")
+            if not block:
                 continue
-            volumes[block] = volumes.get(block, 0.0) + volume
-        self.volume_by_block = volumes
+            cur = self.daily_latest_by_block.get(block)
+            if not cur or row["Date"] > cur["Date"]:
+                self.daily_latest_by_block[block] = row
 
-        # Min/max deficit and ETa across all blocks' latest readings, for
-        # normalizing the PWDI components consistently block-to-block.
-        self.deficit_min = float(self.latest_by_block["Net_Deficit_mm"].min())
-        self.deficit_max = float(self.latest_by_block["Net_Deficit_mm"].max())
-        self.eta_min = float(self.latest_by_block["ETa_mm"].min())
-        self.eta_max = float(self.latest_by_block["ETa_mm"].max())
+        self.pwdi_by_block, self.priority_by_block = self._compute_pwdi_and_priority()
 
-    def _normalize(self, value: float, lo: float, hi: float) -> float:
-        if hi <= lo:
-            return 0.0
-        return max(0.0, min(1.0, (value - lo) / (hi - lo)))
+    def _compute_pwdi_and_priority(self):
+        """PWDI = 0.4 x Pheno_Net_mm score + 0.4 x growth-stage score +
+        0.2 x grape-type score, each scaled 1-5. Priority buckets are
+        relative quartiles of today's PWDI spread across the vineyard, not
+        fixed cutoffs - mirrors priorityRows in Irrigation_Planner.js."""
+        pheno_values = [
+            r.get("Pheno_Net_mm") for r in self.daily_latest_by_block.values()
+            if r.get("Pheno_Net_mm") is not None
+        ]
+        pheno_min = min(pheno_values) if pheno_values else 0
+        pheno_max = max(pheno_values) if pheno_values else 0
+
+        pwdi_by_block = {}
+        for block, record in self.daily_latest_by_block.items():
+            pheno_net = record.get("Pheno_Net_mm")
+            if pheno_net is None:
+                pwdi_by_block[block] = None
+                continue
+            scaled_pheno = (
+                3 if pheno_max == pheno_min
+                else 1 + 4 * ((pheno_net - pheno_min) / (pheno_max - pheno_min))
+            )
+            scaled_stage = GROWTH_STAGE_SCORE.get(record.get("Growth_Stage"), 1)
+            hydrology_type = self.hydrology_by_cultivar.get(record.get("Cultivar"))
+            scaled_grape = GRAPE_TYPE_SCORE.get(hydrology_type, DEFAULT_GRAPE_TYPE_SCORE)
+            pwdi_by_block[block] = (0.4 * scaled_pheno) + (0.4 * scaled_stage) + (0.2 * scaled_grape)
+
+        ranked = sorted(
+            (b for b, v in pwdi_by_block.items() if v is not None),
+            key=lambda b: pwdi_by_block[b],
+            reverse=True,
+        )
+        priority_by_block = {}
+        n = len(ranked)
+        for i, block in enumerate(ranked):
+            percentile = (i / (n - 1)) if n > 1 else 0
+            if percentile <= 0.25:
+                priority_by_block[block] = "critical"
+            elif percentile <= 0.5:
+                priority_by_block[block] = "high"
+            elif percentile <= 0.75:
+                priority_by_block[block] = "moderate"
+            else:
+                priority_by_block[block] = "low"
+        # Blocks with no Pheno_Net_mm (missing phenology data) fall back to
+        # 'low' rather than being left unscored - same as the frontend.
+        for block, v in pwdi_by_block.items():
+            if v is None:
+                priority_by_block[block] = "low"
+
+        return pwdi_by_block, priority_by_block
 
     def _weather_summary(self, lat: float, lng: float) -> str:
         try:
@@ -167,41 +178,32 @@ class BlockDataStore:
             raise ValueError(f"Unknown block '{block_id}'.")
         field = field_rows.iloc[0]
 
-        if block_id not in self.latest_by_block.index:
+        record = self.daily_latest_by_block.get(block_id)
+        if record is None:
             raise ValueError(f"No irrigation data recorded for block '{block_id}'.")
-        record = self.latest_by_block.loc[block_id]
-        record_date = datetime.strptime(record["Date"], "%Y-%m-%d").date()
 
-        budbreak = _parse_us_date(field.get("Budbreak"))
-        flowering = _parse_us_date(field.get("Flowering"))
-        season_start_year = int(str(record["Season"])[:4])
-        stage, stage_day = _derive_stage(record_date, season_start_year, budbreak, flowering)
-
-        deficit = float(record["Net_Deficit_mm"])
-        eta = float(record["ETa_mm"])
-        deficit_norm = self._normalize(deficit, self.deficit_min, self.deficit_max)
-        eta_norm = self._normalize(eta, self.eta_min, self.eta_max)
-        stage_weight = STAGE_SENSITIVITY.get(stage, 0.2)
-
-        pwdi = (
-            DEFICIT_WEIGHT * deficit_norm
-            + ETA_WEIGHT * eta_norm
-            + STAGE_WEIGHT * stage_weight
-            + CULTIVAR_WEIGHT * DEFAULT_CULTIVAR_WEIGHT
-        )
+        cultivar = record.get("Cultivar") or field.get("CULTIVAR", "Unknown")
+        stage = record.get("Growth_Stage") or "Unknown"
+        eta = record.get("ETa_mm")
+        deficit = record.get("Net_Deficit_mm")
+        pheno_net_mm = record.get("Pheno_Net_mm")
+        volume = record.get("Volume_m3") or 0
+        pwdi = self.pwdi_by_block.get(block_id)
+        priority = self.priority_by_block.get(block_id, "low")
 
         weather_summary = self._weather_summary(field.get("Y"), field.get("X"))
 
         return BlockContext(
             block_id=block_id,
-            cultivar=field.get("CULTIVAR", "Unknown"),
+            cultivar=cultivar,
             stage=stage,
-            stage_day=stage_day,
-            eta=round(eta, 2),
-            deficit=round(deficit, 2),
-            pwdi=round(pwdi, 3),
-            priority=_priority_for(pwdi),
-            volume=round(self.volume_by_block.get(block_id, 0.0)),
+            record_date=record.get("Date"),
+            eta=round(eta, 2) if eta is not None else None,
+            deficit=round(deficit, 2) if deficit is not None else None,
+            pheno_net_mm=round(pheno_net_mm, 2) if pheno_net_mm is not None else None,
+            pwdi=round(pwdi, 3) if pwdi is not None else None,
+            priority=priority,
+            volume=round(volume),
             weather_summary=weather_summary,
         )
 

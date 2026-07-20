@@ -53,11 +53,12 @@ def ask_advisor(block_id, question, history):
     ctx = get_block_context(block_id)
     system = f"""You are an irrigation advisor for Tokara vineyard.
 Answer briefly and practically, in plain language for a farm manager.
-Base every answer ONLY on this data:
-Block {ctx.block_id} | Cultivar {ctx.cultivar} | Stage: {ctx.stage} (day {ctx.stage_day})
-Daily ETa {ctx.eta} mm | Weekly deficit {ctx.deficit} mm | PWDI {ctx.pwdi} ({ctx.priority})
-Recommended volume {ctx.volume} m³ | Forecast: {ctx.weather_summary}
-PWDI weights: deficit 0.40, ETa 0.30, stage 0.20, cultivar 0.10
+Base every answer ONLY on this data (as of {ctx.record_date}):
+Block {ctx.block_id} | Cultivar {ctx.cultivar} | Stage: {ctx.stage}
+ETa {ctx.eta} mm | Net Deficit {ctx.deficit} mm | Net irrigation requirement {ctx.pheno_net_mm} mm
+PWDI {ctx.pwdi} | Priority: {ctx.priority} | Recommended volume {ctx.volume} m³
+Forecast: {ctx.weather_summary}
+Priority (critical/high/moderate/low) ranks this block's PWDI relative to all vineyard blocks today, it is not a fixed cutoff.
 If asked something the data can't answer, say so rather than guessing."""
 
     chat = model.start_chat(history=_to_gemini_history(history))
@@ -93,10 +94,11 @@ def ask():
     return jsonify({
         "answer": answer,
         "context": {
+            "date": ctx.record_date,
             "stage": ctx.stage,
-            "stage_day": ctx.stage_day,
             "eta": ctx.eta,
             "deficit": ctx.deficit,
+            "pheno_net_mm": ctx.pheno_net_mm,
             "pwdi": ctx.pwdi,
             "priority": ctx.priority,
             "volume": ctx.volume,
