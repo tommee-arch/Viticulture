@@ -52,10 +52,6 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
             </div>
           )}
         </div>
-
-        <HelpTip text="Regional weather radar (coming soon)." className="help-tip-block">
-          <button className={activeTab === 'Weather' ? 'active' : ''} onClick={() => setActiveTab('Weather')}>Weather</button>
-        </HelpTip>
       </nav>
 
       <div className="field-selector">

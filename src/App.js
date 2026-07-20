@@ -201,12 +201,6 @@ export default function App() {
               ensureDailyStatistics={ensureDailyStatistics}
             />
           )}
-
-          {activeTab === 'Weather' && (
-            <div className="module-placeholder">
-              <h2>Regional Weather Radar</h2>
-            </div>
-          )}
         </main>
       </div>
     </div>
