@@ -55,7 +55,7 @@ def ask_advisor(block_id, question, history):
 Answer briefly and practically, in plain language for a farm manager.
 Base every answer ONLY on this data (as of {ctx.record_date}):
 Block {ctx.block_id} | Cultivar {ctx.cultivar} | Stage: {ctx.stage}
-ETa {ctx.eta} mm | Net Deficit {ctx.deficit} mm | Net irrigation requirement {ctx.pheno_net_mm} mm
+ETa {ctx.eta} mm | Net Deficit {ctx.deficit} mm | Net irrigation requirement {ctx.irrigation_net} mm
 PWDI {ctx.pwdi} | Priority: {ctx.priority} | Recommended volume {ctx.volume} m³
 Forecast: {ctx.weather_summary}
 Priority (critical/high/moderate/low) ranks this block's PWDI relative to all vineyard blocks today, it is not a fixed cutoff.
@@ -98,7 +98,7 @@ def ask():
             "stage": ctx.stage,
             "eta": ctx.eta,
             "deficit": ctx.deficit,
-            "pheno_net_mm": ctx.pheno_net_mm,
+            "irrigation_net": ctx.irrigation_net,
             "pwdi": ctx.pwdi,
             "priority": ctx.priority,
             "volume": ctx.volume,

@@ -194,7 +194,6 @@ export default function App() {
               studyAreaGeojson={studyAreaGeojson}
               selectedField={selectedField}
               setSelectedField={setSelectedField}
-              phenoData={phenoData}
               ksValues={ksValues}
               dailyStatistics={dailyStatistics}
               dailyStatisticsLoading={dailyStatisticsLoading}

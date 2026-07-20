@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import logo from '../sprinklers.png';
 import HelpTip from './HelpTip';
+import { areaKm2ToHa } from '../utils/fieldMetrics';
 export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedField, setSelectedField, collapsed }) {
   const [isDecisionSupportOpen, setIsDecisionSupportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,7 +84,7 @@ export default function Sidebar({ activeTab, setActiveTab, fieldsData, selectedF
               {/* Updated to display BLOCK and CULTIVAR */}
               <span className="field-name">{field.BLOCK} - {field.CULTIVAR}</span>
               {/* Updated to display Area from the CSV, rounded to 3 decimal places */}
-              <span className="field-size">{Number(field.Area).toFixed(3)} ha</span>
+              <span className="field-size">{areaKm2ToHa(field.Area)?.toFixed(3)} ha</span>
             </li>
           ))}
         </ul>

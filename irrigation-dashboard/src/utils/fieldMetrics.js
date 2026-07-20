@@ -8,6 +8,13 @@ export function formatSeason(season) {
   return str;
 }
 
+// vineyard_STAR.csv's Area column is actually km² despite the dashboard
+// always having labelled it "ha" - convert for display (1 km² = 100 ha).
+export function areaKm2ToHa(areaKm2) {
+  if (areaKm2 == null || !Number.isFinite(Number(areaKm2))) return null;
+  return Number(areaKm2) * 100;
+}
+
 // Buckets a block's NDVI reading into a plant-health label.
 export function ndviToHealth(ndvi) {
   if (ndvi == null || !Number.isFinite(ndvi)) return 'Unknown';

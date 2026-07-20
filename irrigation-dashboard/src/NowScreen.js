@@ -8,7 +8,7 @@ import DeficitEtChart from './components/DeficitEtChart';
 import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from './utils/colorScale';
 import { findClosestDate, addDays } from './utils/dateLookup';
 import { sumVRequiredByBlock } from './utils/vRequired';
-import { formatSeason, ndviToHealth } from './utils/fieldMetrics';
+import { formatSeason, ndviToHealth, areaKm2ToHa } from './utils/fieldMetrics';
 import { deriveGrowthStage } from './utils/growthStage';
 import HelpTip from './components/HelpTip';
 
@@ -270,7 +270,7 @@ export default function NowScreen({ field, fields = [], setSelectedField, studyA
             <table>
               <tbody>
                 <tr><td><HelpTip text="Grape variety planted in this block.">Cultivar</HelpTip></td><td>{field.CULTIVAR}</td></tr>
-                <tr><td><HelpTip text="Size of this block in hectares.">Area</HelpTip></td><td>{Number(field.Area).toFixed(3)} ha</td></tr>
+                <tr><td><HelpTip text="Size of this block in hectares.">Area</HelpTip></td><td>{areaKm2ToHa(field.Area)?.toFixed(3)} ha</td></tr>
                 {/* New data from vineyard_STAR.csv */}
                 <tr><td><HelpTip text="Growing season this record belongs to.">Season</HelpTip></td><td>{currentSeason || 'Current'}</td></tr>
                 <tr><td><HelpTip text="Where this block is in its growing season, as of the date above.">Growth Stage</HelpTip></td><td>{growthStage}</td></tr>

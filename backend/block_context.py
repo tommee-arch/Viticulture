@@ -44,14 +44,14 @@ DEFAULT_GRAPE_TYPE_SCORE = 3
 
 class BlockContext:
     def __init__(self, block_id, cultivar, stage, record_date, eta, deficit,
-                 pheno_net_mm, pwdi, priority, volume, weather_summary):
+                 irrigation_net, pwdi, priority, volume, weather_summary):
         self.block_id = block_id
         self.cultivar = cultivar
         self.stage = stage
         self.record_date = record_date
         self.eta = eta
         self.deficit = deficit
-        self.pheno_net_mm = pheno_net_mm
+        self.irrigation_net = irrigation_net
         self.pwdi = pwdi
         self.priority = priority
         self.volume = volume
@@ -93,31 +93,31 @@ class BlockDataStore:
         self.pwdi_by_block, self.priority_by_block = self._compute_pwdi_and_priority()
 
     def _compute_pwdi_and_priority(self):
-        """PWDI = 0.4 x Pheno_Net_mm score + 0.4 x growth-stage score +
+        """PWDI = 0.4 x Irrigation_net score + 0.4 x growth-stage score +
         0.2 x grape-type score, each scaled 1-5. Priority buckets are
         relative quartiles of today's PWDI spread across the vineyard, not
         fixed cutoffs - mirrors priorityRows in Irrigation_Planner.js."""
-        pheno_values = [
-            r.get("Pheno_Net_mm") for r in self.daily_latest_by_block.values()
-            if r.get("Pheno_Net_mm") is not None
+        irrigation_net_values = [
+            r.get("Irrigation_net") for r in self.daily_latest_by_block.values()
+            if r.get("Irrigation_net") is not None
         ]
-        pheno_min = min(pheno_values) if pheno_values else 0
-        pheno_max = max(pheno_values) if pheno_values else 0
+        irrigation_net_min = min(irrigation_net_values) if irrigation_net_values else 0
+        irrigation_net_max = max(irrigation_net_values) if irrigation_net_values else 0
 
         pwdi_by_block = {}
         for block, record in self.daily_latest_by_block.items():
-            pheno_net = record.get("Pheno_Net_mm")
-            if pheno_net is None:
+            irrigation_net = record.get("Irrigation_net")
+            if irrigation_net is None:
                 pwdi_by_block[block] = None
                 continue
-            scaled_pheno = (
-                3 if pheno_max == pheno_min
-                else 1 + 4 * ((pheno_net - pheno_min) / (pheno_max - pheno_min))
+            scaled_irrigation_net = (
+                3 if irrigation_net_max == irrigation_net_min
+                else 1 + 4 * ((irrigation_net - irrigation_net_min) / (irrigation_net_max - irrigation_net_min))
             )
             scaled_stage = GROWTH_STAGE_SCORE.get(record.get("Growth_Stage"), 1)
             hydrology_type = self.hydrology_by_cultivar.get(record.get("Cultivar"))
             scaled_grape = GRAPE_TYPE_SCORE.get(hydrology_type, DEFAULT_GRAPE_TYPE_SCORE)
-            pwdi_by_block[block] = (0.4 * scaled_pheno) + (0.4 * scaled_stage) + (0.2 * scaled_grape)
+            pwdi_by_block[block] = (0.4 * scaled_irrigation_net) + (0.4 * scaled_stage) + (0.2 * scaled_grape)
 
         ranked = sorted(
             (b for b, v in pwdi_by_block.items() if v is not None),
@@ -136,8 +136,8 @@ class BlockDataStore:
                 priority_by_block[block] = "moderate"
             else:
                 priority_by_block[block] = "low"
-        # Blocks with no Pheno_Net_mm (missing phenology data) fall back to
-        # 'low' rather than being left unscored - same as the frontend.
+        # Blocks with no Irrigation_net reading fall back to 'low' rather
+        # than being left unscored - same as the frontend.
         for block, v in pwdi_by_block.items():
             if v is None:
                 priority_by_block[block] = "low"
@@ -186,7 +186,7 @@ class BlockDataStore:
         stage = record.get("Growth_Stage") or "Unknown"
         eta = record.get("ETa_mm")
         deficit = record.get("Net_Deficit_mm")
-        pheno_net_mm = record.get("Pheno_Net_mm")
+        irrigation_net = record.get("Irrigation_net")
         volume = record.get("Volume_m3") or 0
         pwdi = self.pwdi_by_block.get(block_id)
         priority = self.priority_by_block.get(block_id, "low")
@@ -200,7 +200,7 @@ class BlockDataStore:
             record_date=record.get("Date"),
             eta=round(eta, 2) if eta is not None else None,
             deficit=round(deficit, 2) if deficit is not None else None,
-            pheno_net_mm=round(pheno_net_mm, 2) if pheno_net_mm is not None else None,
+            irrigation_net=round(irrigation_net, 2) if irrigation_net is not None else None,
             pwdi=round(pwdi, 3) if pwdi is not None else None,
             priority=priority,
             volume=round(volume),

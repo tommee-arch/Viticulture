@@ -5,6 +5,7 @@ import LabelVisibilityToggler from './LabelVisibilityToggler';
 import CursorPosition from './CursorPosition';
 import { netDeficitColor, evapotranspirationColor, ndviColor, ndwiColor, irrigationVolumeColor, gradientCss, NET_DEFICIT_LOW, NET_DEFICIT_HIGH, ET_LOW, ET_HIGH, NDVI_LOW, NDVI_HIGH, NDWI_LOW, NDWI_HIGH, IRRIGATION_LOW, IRRIGATION_HIGH } from '../utils/colorScale';
 import { sumVRequiredByBlock } from '../utils/vRequired';
+import { areaKm2ToHa } from '../utils/fieldMetrics';
 import HelpTip from './HelpTip';
 
 export default function MapTab({ studyAreaGeojson, selectedField, setSelectedField, fields, dailyIrrigation = [], ndviStats, ndwiSoilStats, vRequiredGeojson }) {
@@ -163,7 +164,7 @@ export default function MapTab({ studyAreaGeojson, selectedField, setSelectedFie
               )}
               <tr><td style={{ color: '#666', paddingRight: '10px' }}>Cultivar</td><td>{selectedField.CULTIVAR}</td></tr>
               {selectedField.Area != null && (
-                <tr><td style={{ color: '#666', paddingRight: '10px' }}>Area</td><td>{Number(selectedField.Area).toFixed(3)} ha</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: '10px' }}>Area</td><td>{areaKm2ToHa(selectedField.Area)?.toFixed(3)} ha</td></tr>
               )}
               {selectedField.season && (
                 <tr><td style={{ color: '#666', paddingRight: '10px' }}>Season</td><td>{selectedField.season}</td></tr>
